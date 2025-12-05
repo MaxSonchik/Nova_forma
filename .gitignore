@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# IDE settings
+.idea/
+.vscode/
+
+# Project specific
+*.log
+*.sqlite
