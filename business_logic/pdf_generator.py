@@ -5,6 +5,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib import colors
 import os
 from datetime import datetime
+from datetime import timedelta 
 from db.database import Database
 
 class PDFGenerator:
@@ -135,3 +136,165 @@ class PDFGenerator:
 
         c.save()
         return True, "Отчет сформирован"
+    
+    def generate_assembler_tasks(self, user_id):
+        """Генерация сменного задания (Чек-лист)"""
+        # 1. Получаем имя сотрудника
+        user_info = Database.fetch_one("SELECT фио FROM сотрудники WHERE id_сотрудника = %s", (user_id,))
+        fio = user_info['фио'] if user_info else "Неизвестный"
+
+        # 2. Получаем задачи (В работе + Принятые, назначенные мне)
+        query = """
+            SELECT z.наименование as заготовка, pz.плановое_количество, pz.фактическое_количество, 
+                   m.наименование as изделие, o.id_заказа
+            FROM план_заготовок pz
+            JOIN заготовки z ON pz.id_заготовки = z.id_заготовки
+            JOIN заказы o ON pz.id_заказа = o.id_заказа
+            JOIN состав_заказа sz ON o.id_заказа = sz.id_заказа -- Приблизительная связь для инфо
+            JOIN изделия m ON sz.id_изделия = m.id_изделия
+            WHERE pz.id_сборщика = %s AND pz.статус IN ('в_работе', 'принято')
+            GROUP BY pz.id_плана, z.наименование, pz.плановое_количество, pz.фактическое_количество, m.наименование, o.id_заказа
+        """
+        # Упростим запрос, чтобы не дублировать строки из-за join'ов (взять просто задачи)
+        query = """
+            SELECT pz.id_плана, z.наименование, pz.плановое_количество, pz.фактическое_количество
+            FROM план_заготовок pz
+            JOIN заготовки z ON pz.id_заготовки = z.id_заготовки
+            WHERE pz.id_сборщика = %s AND pz.статус IN ('в_работе')
+        """
+        tasks = Database.fetch_all(query, (user_id,))
+
+        # --- РИСОВАНИЕ ---
+        c = self.c
+        margin = 50
+        y = self.height - margin
+
+        # Логотип
+        logo_path = os.path.join("assets", "logo.png")
+        if os.path.exists(logo_path):
+            c.drawImage(logo_path, margin, y - 50, width=50, height=50, preserveAspectRatio=True, mask='auto')
+
+        # Заголовок
+        c.setFont(self.font_name, 16)
+        c.drawString(margin + 60, y - 20, "СМЕННОЕ ЗАДАНИЕ")
+        c.setFont(self.font_name, 12)
+        c.drawString(margin + 60, y - 40, f"Сотрудник: {fio}")
+        c.drawString(margin + 60, y - 55, f"Дата выдачи: {datetime.now().strftime('%d.%m.%Y')}")
+        
+        y -= 80
+
+        # Таблица
+        c.setFillColor(colors.lightgrey)
+        c.rect(margin, y - 5, self.width - 2 * margin, 20, fill=1)
+        c.setFillColor(colors.black)
+        c.setFont(self.font_name, 10)
+        
+        c.drawString(margin + 5, y, "ID")
+        c.drawString(margin + 40, y, "Заготовка (Деталь)")
+        c.drawString(margin + 300, y, "План")
+        c.drawString(margin + 350, y, "Сделано")
+        c.drawString(margin + 420, y, "Отметка")
+        
+        y -= 25
+
+        if not tasks:
+            c.drawString(margin, y, "Нет активных задач.")
+        
+        for task in tasks:
+            plan = task['плановое_количество']
+            fact = task['фактическое_количество']
+            
+            c.drawString(margin + 5, y, str(task['id_плана']))
+            c.drawString(margin + 40, y, task['наименование'][:45])
+            c.drawString(margin + 300, y, str(plan))
+            c.drawString(margin + 350, y, str(fact))
+            
+            # Чекбокс (квадратик)
+            c.rect(margin + 420, y - 2, 12, 12, fill=0)
+            
+            c.line(margin, y - 5, self.width - margin, y - 5)
+            y -= 20
+            
+            if y < 50:
+                c.showPage()
+                y = self.height - 50
+
+        c.save()
+        return True, "Сменное задание сформировано"
+
+    def generate_assembler_schedule(self, user_id):
+        """Генерация графика на текущий месяц"""
+        # 1. Данные
+        user_info = Database.fetch_one("SELECT фио FROM сотрудники WHERE id_сотрудника = %s", (user_id,))
+        fio = user_info['фио'] if user_info else "Неизвестный"
+        
+        # Получаем график на текущий месяц
+        now = datetime.now()
+        start_date = now.replace(day=1).strftime("%Y-%m-%d")
+        # Конец месяца (грубо +31 день)
+        end_date = (now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        
+        query = """
+            SELECT дата, статус FROM график_работы 
+            WHERE id_сотрудника = %s AND дата BETWEEN %s AND %s
+            ORDER BY дата
+        """
+        schedule = Database.fetch_all(query, (user_id, start_date, end_date))
+
+        # --- РИСОВАНИЕ ---
+        c = self.c
+        margin = 50
+        y = self.height - margin
+
+        # Логотип
+        logo_path = os.path.join("assets", "logo.png")
+        if os.path.exists(logo_path):
+            c.drawImage(logo_path, margin, y - 50, width=50, height=50, preserveAspectRatio=True, mask='auto')
+
+        months_ru = ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", 
+                     "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"]
+        month_name = months_ru[now.month]
+
+        c.setFont(self.font_name, 16)
+        c.drawString(margin + 60, y - 20, f"ГРАФИК РАБОТЫ: {month_name} {now.year}")
+        c.setFont(self.font_name, 12)
+        c.drawString(margin + 60, y - 40, f"Сотрудник: {fio}")
+        
+        y -= 80
+
+        # Таблица (Дата | День недели | Статус)
+        c.setFont(self.font_name, 10)
+        c.drawString(margin + 20, y, "Дата")
+        c.drawString(margin + 120, y, "День недели")
+        c.drawString(margin + 250, y, "Статус")
+        c.line(margin, y - 5, margin + 400, y - 5)
+        y -= 20
+
+        days_ru = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+
+        for item in schedule:
+            d = item['дата']
+            status = item['статус']
+            day_name = days_ru[d.weekday()]
+            date_str = d.strftime("%d.%m.%Y")
+            
+            c.setFillColor(colors.black)
+            c.drawString(margin + 20, y, date_str)
+            c.drawString(margin + 120, y, day_name)
+            
+            # Цвет статуса
+            if status == 'рабочий': c.setFillColor(colors.green)
+            elif status == 'выходной': c.setFillColor(colors.red)
+            elif status == 'отпуск': c.setFillColor(colors.blue)
+            elif status == 'больничный': c.setFillColor(colors.orange)
+            
+            c.drawString(margin + 250, y, status.upper())
+            
+            y -= 15
+            
+            if y < 50:
+                c.showPage()
+                y = self.height - 50
+
+        c.save()
+        return True, "График сформирован"

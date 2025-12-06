@@ -10,9 +10,11 @@ import qtawesome as qta
 from ui.widgets.orders_tab import OrdersTab
 from ui.widgets.clients_tab import ClientsTab
 from ui.widgets.warehouse_tab import WarehouseTab
+from ui.widgets.manager_schedule_tab import ManagerScheduleTab
 
 
-
+from ui.widgets.production_tab import ProductionTab
+from ui.widgets.schedule_tab import ScheduleTab
 
 
 
@@ -148,15 +150,17 @@ class MainWindow(QMainWindow):
             self.add_menu_item("Закупки", "fa5s.shopping-cart", self.create_placeholder("Закупки Материалов"))
             self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
             self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id)) 
+            self.add_menu_item("Графики", "fa5s.calendar-check", ManagerScheduleTab())
 
         elif self.role == 'менеджер':
             self.add_menu_item("Заказы", "fa5s.clipboard-list", OrdersTab(self.user_id))
             self.add_menu_item("Клиенты", "fa5s.address-book", ClientsTab())
             self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
+            self.add_menu_item("Графики", "fa5s.calendar-check", ManagerScheduleTab())
             
         elif self.role == 'сборщик':
-            self.add_menu_item("Мои Задачи", "fa5s.tools", self.create_placeholder("План работ"))
-            self.add_menu_item("График", "fa5s.calendar-alt", self.create_placeholder("Мой График"))
+            self.add_menu_item("Мои Задачи", "fa5s.tools", ProductionTab(self.user_id))
+            self.add_menu_item("График", "fa5s.calendar-alt", ScheduleTab(self.user_id))
             
         else:
             # Если роль не совпала, показываем ошибку в меню
