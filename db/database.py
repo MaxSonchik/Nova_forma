@@ -1,15 +1,17 @@
+import os
+import sys
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import sys
-import os
 
 # Добавляем путь к конфигу
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import config
 
+
 class Database:
     """Класс-обертка для работы с БД"""
-    
+
     @staticmethod
     def connect():
         return psycopg2.connect(config.DATABASE_URL)
@@ -30,8 +32,8 @@ class Database:
             print(f"❌ Ошибка БД (fetch_all): {e}")
             return []
         finally:
-            if conn: conn.close()
-
+            if conn:
+                conn.close()
 
     @staticmethod
     def insert_returning(query, params=None):
@@ -43,15 +45,17 @@ class Database:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params)
             result = cur.fetchone()
-            conn.commit() # <--- САМОЕ ВАЖНОЕ: Сохраняем изменения
+            conn.commit()  # <--- САМОЕ ВАЖНОЕ: Сохраняем изменения
             cur.close()
             return result
         except Exception as e:
-            if conn: conn.rollback()
+            if conn:
+                conn.rollback()
             print(f"❌ Ошибка БД (insert_returning): {e}")
             return None
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     @staticmethod
     def execute(query, params=None):
@@ -65,12 +69,14 @@ class Database:
             cur.close()
             return True, "Успешно"
         except Exception as e:
-            if conn: conn.rollback()
-            error_msg = str(e).split('\n')[0] # Берем первую строку ошибки
+            if conn:
+                conn.rollback()
+            error_msg = str(e).split("\n")[0]  # Берем первую строку ошибки
             print(f"❌ Ошибка БД (execute): {error_msg}")
             return False, error_msg
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     @staticmethod
     def fetch_one(query, params=None):
@@ -87,4 +93,5 @@ class Database:
             print(f"❌ Ошибка БД (fetch_one): {e}")
             return None
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()

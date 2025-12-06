@@ -1,16 +1,27 @@
-import sys
 import os
+import sys
+
 import bcrypt
 import psycopg2
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, 
-                             QPushButton, QFrame, QHBoxLayout, QGraphicsDropShadowEffect)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QPixmap, QIcon, QColor
 import qtawesome as qta
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QPixmap
+from PyQt6.QtWidgets import (
+    QFrame,
+    QGraphicsDropShadowEffect,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 # Добавляем путь для импорта config
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 from config import config
+
 
 class LoginWindow(QWidget):
     # Сигнал успешного входа (передает ID сотрудника, Роль, ФИО)
@@ -21,7 +32,7 @@ class LoginWindow(QWidget):
         self.setObjectName("LoginWindow")
         self.setWindowTitle("Nova Forma CRM - Вход")
         self.setFixedSize(450, 600)
-        
+
         # Настройка интерфейса
         self.setup_ui()
 
@@ -34,7 +45,7 @@ class LoginWindow(QWidget):
         container = QFrame()
         container.setObjectName("LoginContainer")
         container.setFixedSize(380, 500)
-        
+
         # Тень для красоты (объем)
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
@@ -52,13 +63,18 @@ class LoginWindow(QWidget):
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             # Масштабируем логотип, сохраняя пропорции
-            scaled_pixmap = pixmap.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            scaled_pixmap = pixmap.scaled(
+                120,
+                120,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             logo_label.setPixmap(scaled_pixmap)
         else:
             logo_label.setText("NOVA FORMA")
             logo_label.setStyleSheet("font-weight: bold; font-size: 20px;")
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         # 2. Текст приветствия
         title = QLabel("Добро пожаловать")
         title.setObjectName("Header")
@@ -72,12 +88,18 @@ class LoginWindow(QWidget):
         self.login_input = QLineEdit()
         self.login_input.setPlaceholderText("Логин")
         # Добавляем иконку внутрь поля (Action)
-        self.login_input.addAction(qta.icon('fa5s.user', color='#95A5A6'), QLineEdit.ActionPosition.LeadingPosition)
+        self.login_input.addAction(
+            qta.icon("fa5s.user", color="#95A5A6"),
+            QLineEdit.ActionPosition.LeadingPosition,
+        )
 
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Пароль")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.addAction(qta.icon('fa5s.lock', color='#95A5A6'), QLineEdit.ActionPosition.LeadingPosition)
+        self.password_input.addAction(
+            qta.icon("fa5s.lock", color="#95A5A6"),
+            QLineEdit.ActionPosition.LeadingPosition,
+        )
         # Обработка Enter
         self.password_input.returnPressed.connect(self.handle_login)
 
@@ -118,14 +140,17 @@ class LoginWindow(QWidget):
         try:
             conn = psycopg2.connect(config.DATABASE_URL)
             cur = conn.cursor()
-            
+
             # Запрашиваем хеш и роль
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id_сотрудника, password_hash, должность, фио 
                 FROM сотрудники 
                 WHERE login = %s
-            """, (login,))
-            
+            """,
+                (login,),
+            )
+
             user = cur.fetchone()
             cur.close()
             conn.close()
@@ -133,8 +158,8 @@ class LoginWindow(QWidget):
             if user:
                 user_id, db_hash, role, fio = user
                 # Проверка хеша
-                if bcrypt.checkpw(password.encode('utf-8'), db_hash.encode('utf-8')):
-                    self.show_error("") # Очистка ошибок
+                if bcrypt.checkpw(password.encode("utf-8"), db_hash.encode("utf-8")):
+                    self.show_error("")  # Очистка ошибок
                     print(f"Успешный вход: {role} {fio}")
                     # Генерируем сигнал для Main.py
                     self.loginSuccess.emit(user_id, role, fio)
