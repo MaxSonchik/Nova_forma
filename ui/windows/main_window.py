@@ -16,7 +16,8 @@ from ui.widgets.manager_schedule_tab import ManagerScheduleTab
 from ui.widgets.production_tab import ProductionTab
 from ui.widgets.schedule_tab import ScheduleTab
 
-
+from ui.widgets.dashboard_tab import DashboardTab
+from ui.widgets.employees_tab import EmployeesTab
 
 
 
@@ -145,8 +146,8 @@ class MainWindow(QMainWindow):
         """Заполняет меню в зависимости от роли"""
         
         if self.role == 'директор':
-            self.add_menu_item("Дашборд", "fa5s.chart-line", self.create_placeholder("Дашборд Директора"))
-            self.add_menu_item("Персонал", "fa5s.users", self.create_placeholder("Управление Персоналом"))
+            self.add_menu_item("Дашборд", "fa5s.chart-line", DashboardTab())
+            self.add_menu_item("Персонал", "fa5s.users", EmployeesTab())
             self.add_menu_item("Закупки", "fa5s.shopping-cart", self.create_placeholder("Закупки Материалов"))
             self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
             self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id)) 
@@ -157,7 +158,7 @@ class MainWindow(QMainWindow):
             self.add_menu_item("Клиенты", "fa5s.address-book", ClientsTab())
             self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
             self.add_menu_item("Графики", "fa5s.calendar-check", ManagerScheduleTab())
-            
+
         elif self.role == 'сборщик':
             self.add_menu_item("Мои Задачи", "fa5s.tools", ProductionTab(self.user_id))
             self.add_menu_item("График", "fa5s.calendar-alt", ScheduleTab(self.user_id))
