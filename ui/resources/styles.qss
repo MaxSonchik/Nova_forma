@@ -1,0 +1,141 @@
+/* ГЛОБАЛЬНЫЕ НАСТРОЙКИ */
+QWidget {
+    font-family: 'Segoe UI', 'Roboto', sans-serif;
+    font-size: 14px;
+    color: #2C3E50; /* Темный графит */
+    background-color: #F5F6F8; /* Светлый фон */
+}
+
+/* ОКНО АВТОРИЗАЦИИ */
+#LoginWindow {
+    background-color: #FFFFFF;
+}
+
+#LoginContainer {
+    background-color: #FFFFFF;
+    border-radius: 10px;
+    border: 1px solid #E0E0E0;
+}
+
+/* ПОЛЯ ВВОДА */
+QLineEdit {
+    border: 2px solid #E0E0E0;
+    border-radius: 5px;
+    padding: 10px;
+    background-color: #FAFAFA;
+    font-size: 14px;
+}
+
+QLineEdit:focus {
+    border: 2px solid #3498DB; /* Синий акцент */
+    background-color: #FFFFFF;
+}
+
+/* КНОПКИ (Primary) */
+QPushButton#PrimaryButton {
+    background-color: #3498DB; /* Электрический синий */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 12px;
+    font-weight: bold;
+    font-size: 15px;
+}
+
+QPushButton#PrimaryButton:hover {
+    background-color: #2980B9;
+}
+
+QPushButton#PrimaryButton:pressed {
+    background-color: #1F618D;
+}
+
+/* ЗАГОЛОВКИ */
+QLabel#Header {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2C3E50;
+    margin-bottom: 10px;
+}
+
+QLabel#SubHeader {
+    font-size: 14px;
+    color: #7F8C8D;
+    margin-bottom: 20px;
+}
+
+/* ОШИБКИ */
+QLabel#ErrorLabel {
+    color: #E74C3C;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+/* --- БОКОВАЯ ПАНЕЛЬ --- */
+
+/* Контейнер панели */
+#Sidebar {
+    background-color: #2C3E50;
+    min-width: 220px;
+    max-width: 220px;
+    border-right: 1px solid #1A252F;
+}
+
+/* Принудительно делаем все метки внутри сайдбара прозрачными */
+#Sidebar QLabel {
+    background-color: transparent;
+    border: none;
+}
+
+/* Конкретизируем цвета текста */
+QLabel#UserInfo {
+    color: #95A5A6; /* Светло-серый */
+    font-size: 12px;
+    padding-left: 10px;
+    background: transparent;
+}
+
+QLabel#UserName {
+    color: #FFFFFF; /* Белый */
+    font-size: 16px;
+    font-weight: bold;
+    padding-left: 10px;
+    background: transparent;
+}
+
+/* Кнопки меню */
+QPushButton.NavButton {
+    background-color: transparent;
+    color: #BDC3C7;
+    text-align: left;
+    padding: 15px 20px;
+    border: none;
+    font-size: 14px;
+    border-left: 4px solid transparent;
+}
+
+QPushButton.NavButton:hover {
+    background-color: #34495E;
+    color: #ECF0F1;
+}
+
+QPushButton.NavButton:checked {
+    background-color: #2C3E50; /* Цвет фона такой же */
+    color: #FFFFFF;
+    border-left: 4px solid #3498DB; /* Синяя полоска */
+    font-weight: bold;
+}
+
+/* Кнопка Выход */
+QPushButton#LogoutButton {
+    background-color: transparent;
+    color: #E74C3C; /* Красный */
+    text-align: left;
+    padding: 12px 20px;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#LogoutButton:hover {
+    background-color: #34495E;
+}
+

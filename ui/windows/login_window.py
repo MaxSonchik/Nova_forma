@@ -1,0 +1,152 @@
+import sys
+import os
+import bcrypt
+import psycopg2
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, 
+                             QPushButton, QFrame, QHBoxLayout, QGraphicsDropShadowEffect)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtGui import QPixmap, QIcon, QColor
+import qtawesome as qta
+
+# Добавляем путь для импорта config
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from config import config
+
+class LoginWindow(QWidget):
+    # Сигнал успешного входа (передает ID сотрудника, Роль, ФИО)
+    loginSuccess = pyqtSignal(int, str, str)
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("LoginWindow")
+        self.setWindowTitle("Nova Forma CRM - Вход")
+        self.setFixedSize(450, 600)
+        
+        # Настройка интерфейса
+        self.setup_ui()
+
+    def setup_ui(self):
+        # Основной слой
+        main_layout = QVBoxLayout(self)
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Карточка входа (Container)
+        container = QFrame()
+        container.setObjectName("LoginContainer")
+        container.setFixedSize(380, 500)
+        
+        # Тень для красоты (объем)
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 30))
+        shadow.setOffset(0, 5)
+        container.setGraphicsEffect(shadow)
+
+        layout = QVBoxLayout(container)
+        layout.setSpacing(15)
+        layout.setContentsMargins(30, 40, 30, 40)
+
+        # 1. Логотип
+        logo_label = QLabel()
+        logo_path = os.path.join("assets", "logo.png")
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            # Масштабируем логотип, сохраняя пропорции
+            scaled_pixmap = pixmap.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            logo_label.setPixmap(scaled_pixmap)
+        else:
+            logo_label.setText("NOVA FORMA")
+            logo_label.setStyleSheet("font-weight: bold; font-size: 20px;")
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # 2. Текст приветствия
+        title = QLabel("Добро пожаловать")
+        title.setObjectName("Header")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        subtitle = QLabel("Войдите в систему управления")
+        subtitle.setObjectName("SubHeader")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # 3. Поля ввода
+        self.login_input = QLineEdit()
+        self.login_input.setPlaceholderText("Логин")
+        # Добавляем иконку внутрь поля (Action)
+        self.login_input.addAction(qta.icon('fa5s.user', color='#95A5A6'), QLineEdit.ActionPosition.LeadingPosition)
+
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("Пароль")
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.addAction(qta.icon('fa5s.lock', color='#95A5A6'), QLineEdit.ActionPosition.LeadingPosition)
+        # Обработка Enter
+        self.password_input.returnPressed.connect(self.handle_login)
+
+        # 4. Кнопка входа
+        self.login_btn = QPushButton("ВОЙТИ")
+        self.login_btn.setObjectName("PrimaryButton")
+        self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.login_btn.clicked.connect(self.handle_login)
+
+        # 5. Метка ошибки (скрыта по умолчанию)
+        self.error_label = QLabel("")
+        self.error_label.setObjectName("ErrorLabel")
+        self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.error_label.hide()
+
+        # Добавляем всё в лайаут
+        layout.addWidget(logo_label)
+        layout.addSpacing(10)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addSpacing(20)
+        layout.addWidget(self.login_input)
+        layout.addWidget(self.password_input)
+        layout.addWidget(self.error_label)
+        layout.addStretch()
+        layout.addWidget(self.login_btn)
+
+        main_layout.addWidget(container)
+
+    def handle_login(self):
+        login = self.login_input.text().strip()
+        password = self.password_input.text().strip()
+
+        if not login or not password:
+            self.show_error("Введите логин и пароль")
+            return
+
+        try:
+            conn = psycopg2.connect(config.DATABASE_URL)
+            cur = conn.cursor()
+            
+            # Запрашиваем хеш и роль
+            cur.execute("""
+                SELECT id_сотрудника, password_hash, должность, фио 
+                FROM сотрудники 
+                WHERE login = %s
+            """, (login,))
+            
+            user = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            if user:
+                user_id, db_hash, role, fio = user
+                # Проверка хеша
+                if bcrypt.checkpw(password.encode('utf-8'), db_hash.encode('utf-8')):
+                    self.show_error("") # Очистка ошибок
+                    print(f"Успешный вход: {role} {fio}")
+                    # Генерируем сигнал для Main.py
+                    self.loginSuccess.emit(user_id, role, fio)
+                else:
+                    self.show_error("Неверный пароль")
+            else:
+                self.show_error("Пользователь не найден")
+
+        except Exception as e:
+            self.show_error(f"Ошибка БД: {str(e)}")
+
+    def show_error(self, message):
+        self.error_label.setText(message)
+        self.error_label.show()
+        # Эффект дрожания можно добавить позже
