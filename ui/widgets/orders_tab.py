@@ -6,9 +6,16 @@ from PyQt6.QtGui import QColor
 import qtawesome as qta
 from db.database import Database
 
+from PyQt6.QtWidgets import QFileDialog # <-- Добавь это
+from business_logic.pdf_generator import PDFGenerator # <-- И это
+from ui.widgets.toast import Toast # <-- И это
+
+from ui.dialogs.add_order_dialog import AddOrderDialog # Не забудь импортировать!
+
 class OrdersTab(QWidget):
-    def __init__(self):
+    def __init__(self, current_user_id): 
         super().__init__()
+        self.current_user_id = current_user_id 
         self.setup_ui()
         self.load_data()
 
@@ -57,6 +64,12 @@ class OrdersTab(QWidget):
         self.btn_add.setObjectName("PrimaryButton")
         self.btn_add.clicked.connect(self.open_add_order_dialog)
 
+        self.btn_print = QPushButton()
+        self.btn_print.setIcon(qta.icon('fa5s.file-pdf', color='#E74C3C'))
+        self.btn_print.setToolTip("Печать бланка заказа")
+        self.btn_print.setFixedWidth(40)
+        self.btn_print.clicked.connect(self.print_order)
+
         # Добавляем всё в лайаут фильтров
         filter_layout.addWidget(self.search_input)
         filter_layout.addWidget(self.status_filter)
@@ -67,6 +80,7 @@ class OrdersTab(QWidget):
         filter_layout.addWidget(self.date_to)
         filter_layout.addStretch()
         filter_layout.addWidget(btn_refresh)
+        filter_layout.addWidget(self.btn_print) 
         filter_layout.addWidget(self.btn_add)
         
         layout.addWidget(filter_group)
@@ -132,7 +146,7 @@ class OrdersTab(QWidget):
         
         orders = Database.fetch_all(query, params)
         self.populate_table(orders)
-        
+
 
     def populate_table(self, orders):
         self.table.setRowCount(0)
@@ -177,4 +191,42 @@ class OrdersTab(QWidget):
                 self.table.setItem(row_idx, col_idx, item)
 
     def open_add_order_dialog(self):
-        QMessageBox.information(self, "В разработке", "Создание заказа будет реализовано следующим шагом.")
+        # Передаем ID менеджера в диалог
+        dialog = AddOrderDialog(self, manager_id=self.current_user_id)
+        if dialog.exec(): # Если нажали "Создать"
+            self.load_data() # Обновляем таблицу заказов
+
+    def print_order(self):
+        # 1. Получаем ID выделенного заказа
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            Toast.warning(self, "Внимание", "Выберите заказ для печати")
+            return
+            
+        # ID у нас в 0-м столбце
+        row = selected_items[0].row()
+        order_id = self.table.item(row, 0).text()
+        
+        # 2. Спрашиваем куда сохранить
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить отчет", 
+            f"Заказ_{order_id}.pdf", 
+            "PDF Files (*.pdf)"
+        )
+        
+        if not file_path:
+            return
+
+        # 3. Генерация
+        try:
+            generator = PDFGenerator(file_path)
+            success, msg = generator.generate_order_blank(order_id)
+            
+            if success:
+                Toast.success(self, "Готово", f"Отчет сохранен:\n{file_path}")
+            else:
+                Toast.error(self, "Ошибка", msg)
+                
+        except Exception as e:
+            Toast.error(self, "Ошибка генерации", str(e))
+

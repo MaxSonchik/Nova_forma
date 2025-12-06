@@ -4,7 +4,19 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 import qtawesome as qta
 
+
+
+
 from ui.widgets.orders_tab import OrdersTab
+from ui.widgets.clients_tab import ClientsTab
+from ui.widgets.warehouse_tab import WarehouseTab
+
+
+
+
+
+
+
 
 class MainWindow(QMainWindow):
     # Сигнал для выхода из учетной записи
@@ -130,17 +142,17 @@ class MainWindow(QMainWindow):
     def populate_menu_by_role(self):
         """Заполняет меню в зависимости от роли"""
         
-        # ВАЖНО: Роли должны быть написаны маленькими буквами (как в БД)
         if self.role == 'директор':
             self.add_menu_item("Дашборд", "fa5s.chart-line", self.create_placeholder("Дашборд Директора"))
             self.add_menu_item("Персонал", "fa5s.users", self.create_placeholder("Управление Персоналом"))
             self.add_menu_item("Закупки", "fa5s.shopping-cart", self.create_placeholder("Закупки Материалов"))
-            self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab()) 
-            
+            self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
+            self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id)) 
+
         elif self.role == 'менеджер':
-            self.add_menu_item("Заказы", "fa5s.clipboard-list", OrdersTab())
-            self.add_menu_item("Клиенты", "fa5s.address-book", self.create_placeholder("База Клиентов"))
-            self.add_menu_item("Склад", "fa5s.boxes", self.create_placeholder("Остатки Склада"))
+            self.add_menu_item("Заказы", "fa5s.clipboard-list", OrdersTab(self.user_id))
+            self.add_menu_item("Клиенты", "fa5s.address-book", ClientsTab())
+            self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
             
         elif self.role == 'сборщик':
             self.add_menu_item("Мои Задачи", "fa5s.tools", self.create_placeholder("План работ"))

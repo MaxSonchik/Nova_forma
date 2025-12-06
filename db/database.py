@@ -32,6 +32,27 @@ class Database:
         finally:
             if conn: conn.close()
 
+
+    @staticmethod
+    def insert_returning(query, params=None):
+        """Выполняет INSERT с RETURNING и делает COMMIT"""
+        conn = None
+        try:
+            conn = Database.connect()
+            # Используем RealDictCursor, чтобы получить результат как словарь
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(query, params)
+            result = cur.fetchone()
+            conn.commit() # <--- САМОЕ ВАЖНОЕ: Сохраняем изменения
+            cur.close()
+            return result
+        except Exception as e:
+            if conn: conn.rollback()
+            print(f"❌ Ошибка БД (insert_returning): {e}")
+            return None
+        finally:
+            if conn: conn.close()
+
     @staticmethod
     def execute(query, params=None):
         """Выполняет INSERT, UPDATE, DELETE, CALL"""
