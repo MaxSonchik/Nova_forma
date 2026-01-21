@@ -5,11 +5,11 @@ DECLARE
     v_id_заготовки INTEGER;
     v_plan_qty INTEGER;
     v_status VARCHAR;
-    v_mat_name VARCHAR; -- Переменная для названия
+    v_mat_name VARCHAR; 
     v_required_qty INTEGER;
     v_stock_qty INTEGER;
 BEGIN
-    -- Получаем данные задачи
+
     SELECT id_заготовки, плановое_количество, статус INTO v_id_заготовки, v_plan_qty, v_status
     FROM план_заготовок WHERE id_плана = p_id_плана;
 
@@ -17,7 +17,7 @@ BEGIN
         RAISE EXCEPTION 'Задача уже в работе или выполнена/отменена';
     END IF;
 
-    -- Проверяем наличие материалов
+
     FOR rec IN SELECT id_материала, количество_материала FROM расход_материалов WHERE id_заготовки = v_id_заготовки
     LOOP
         v_required_qty := rec.количество_материала * v_plan_qty;
@@ -26,12 +26,11 @@ BEGIN
         FROM материалы WHERE id_материала = rec.id_материала;
         
         IF v_stock_qty < v_required_qty THEN
-            -- ТЕПЕРЬ ВЫВОДИМ НАЗВАНИЕ
             RAISE EXCEPTION 'Недостаточно материала "%" (Нужно: %, Есть: %)', v_mat_name, v_required_qty, v_stock_qty;
         END IF;
     END LOOP;
 
-    -- Списываем
+
     FOR rec IN SELECT id_материала, количество_материала FROM расход_материалов WHERE id_заготовки = v_id_заготовки
     LOOP
         UPDATE материалы 

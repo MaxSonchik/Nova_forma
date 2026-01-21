@@ -92,40 +92,21 @@ class AddClientDialog(QDialog):
             return
 
         try:
-            if self.client_data:
-                # --- РЕДАКТИРОВАНИЕ (UPDATE) ---
-                client_id = self.client_data["id_клиента"]
-                query = """
-                    UPDATE клиенты 
-                    SET фио=%s, номер_телефона=%s, инн=%s, адрес=%s
-                    WHERE id_клиента=%s
-                """
-                params = (fio, phone, inn, address, client_id)
-                success_msg = "Данные клиента обновлены!"
-            else:
-                # --- СОЗДАНИЕ (INSERT) ---
-                query = """
-                    INSERT INTO клиенты (фио, номер_телефона, инн, адрес)
-                    VALUES (%s, %s, %s, %s)
-                """
-                params = (fio, phone, inn, address)
-                success_msg = "Новый клиент создан!"
+            client_id = self.client_data["id_клиента"] if self.client_data else None
+            
+            # Вызываем процедуру сохранения (Create/Update)
+            res = Database.call_procedure(
+                'sp_save_client', 
+                [client_id, fio, phone, inn, address]
+            )
 
-            # Отправка в БД
-            success, error = Database.execute(query, params)
-
-            if success:
-                # Важно: показываем тост родителю (вкладке), т.к. диалог сейчас закроется
-                Toast.success(self.parent(), "Успешно", success_msg)
+            if res.get('status') == 'OK':
+                # Успех
+                Toast.success(self.parent(), "Успешно", res.get('message'))
                 self.accept()
             else:
-                # Обработка ошибок БД (например, дубль телефона)
-                if "номер_телефона" in error and "unique" in error.lower():
-                    Toast.error(
-                        self, "Ошибка", "Клиент с таким телефоном уже существует!"
-                    )
-                else:
-                    Toast.error(self, "Ошибка БД", error)
+                # Ошибка
+                Toast.error(self, "Ошибка сохранения", res.get('message'))
 
         except Exception as e:
             Toast.error(self, "Критическая ошибка", str(e))

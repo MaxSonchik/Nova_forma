@@ -119,20 +119,16 @@ class AddOrderDialog(QDialog):
         layout.addLayout(bottom_layout)
 
     def load_dictionaries(self):
-        """Загрузка клиентов и изделий из БД"""
+        """Загрузка клиентов и изделий через процедуры"""
         # Клиенты
-        clients = Database.fetch_all("SELECT id_клиента, фио FROM клиенты ORDER BY фио")
+        clients = Database.fetch_all("SELECT * FROM sp_get_clients()")
         for c in clients:
-            # addItem(text, userData) -> userData хранит скрытый ID
             self.combo_client.addItem(c["фио"], c["id_клиента"])
 
         # Изделия
-        products = Database.fetch_all(
-            "SELECT id_изделия, наименование, стоимость, количество_на_складе FROM изделия ORDER BY наименование"
-        )
+        products = Database.fetch_all("SELECT * FROM sp_get_products()")
         for p in products:
             text = f"{p['наименование']} (Остаток: {p['количество_на_складе']}) - {p['стоимость']} ₽"
-            # Храним кортеж (id, price) в userData
             self.combo_product.addItem(
                 text, (p["id_изделия"], p["стоимость"], p["наименование"])
             )
@@ -179,7 +175,7 @@ class AddOrderDialog(QDialog):
         self.lbl_total.setText(f"Итого: {total_sum:,.2f} ₽")
 
     def save_order(self):
-        """Отправка в БД"""
+        """Отправка в БД (Refactored)"""
         if not self.cart_items:
             QMessageBox.warning(self, "Ошибка", "Корзина пуста!")
             return
@@ -193,50 +189,43 @@ class AddOrderDialog(QDialog):
         deadline = self.date_edit.date().toString("yyyy-MM-dd")
 
         try:
-            # 1. Создаем заголовок заказа с COMMIT (используем новый метод)
-            res = Database.insert_returning(
-                """
-                INSERT INTO заказы (id_клиента, id_менеджера, дата_готовности, статус)
-                VALUES (%s, %s, %s, 'принят') RETURNING id_заказа
-            """,
-                (client_id, self.manager_id, deadline),
+            # 1. Создаем заголовок заказа через процедуру
+            res_order = Database.call_procedure(
+                'sp_create_order', 
+                [client_id, self.manager_id, deadline]
             )
 
-            if not res:
-                raise Exception("Не удалось создать заказ (Ошибка БД)")
+            if res_order.get('status') != 'OK':
+                raise Exception(res_order.get('message', 'Ошибка создания заказа'))
 
-            order_id = res["id_заказа"]
+            order_id = res_order.get('new_order_id')
             warnings = []
 
             # 2. Добавление товаров через процедуру
             for item in self.cart_items:
-                # ВАЖНО: Используем fetch_one, так как это SELECT вызов функции
-                # Функция внутри себя делает INSERT/UPDATE, но сам вызов идет через SELECT
-                res_msg = Database.fetch_one(
-                    "SELECT sp_добавить_изделие_в_заказ(%s, %s, %s)",
-                    (order_id, item["id"], item["qty"]),
+                res_item = Database.call_procedure(
+                    'sp_add_order_item', 
+                    [order_id, item["id"], item["qty"]]
                 )
 
-                # Добавляем проверку, чтобы не было 'NoneType' error
-                if res_msg and "sp_добавить_изделие_в_заказ" in res_msg:
-                    msg = res_msg["sp_добавить_изделие_в_заказ"]
-                    if "WARNING" in msg:
-                        warnings.append(f"- {item['name']}: {msg}")
-                else:
-                    print(f"❌ Ошибка добавления позиции {item['name']}")
+                status = res_item.get('status')
+                msg = res_item.get('message', '')
+
+                if status == 'WARNING':
+                    warnings.append(f"- {item['name']}: {msg}")
+                elif status == 'ERROR':
+                    # Логируем, но не прерываем (или прерываем? по ТЗ - обработка всех исключений на БД)
+                    # Если БД вернула Error, значит позиция не добавлена.
+                    warnings.append(f"❌ Ошибка {item['name']}: {msg}")
 
             # Успех
-            final_msg = f"Заказ №{order_id} успешно создан!"
             if warnings:
-                short_msg = "Заказ создан, но не хватает материалов. Проверьте план."
-                Toast.warning(self.parent(), "Заказ создан с оговорками", short_msg)
+                short_msg = "Заказ создан, но есть замечания:\n" + "\n".join(warnings)
+                Toast.warning(self.parent(), "Внимание", short_msg)
             else:
-                # Всё чисто - Зеленый тост
                 Toast.success(self.parent(), "Успешно", f"Заказ №{order_id} создан!")
 
             self.accept()  # Закрываем диалог
 
         except Exception as e:
-            # Ошибка - Красный тост
-            # Важно: self.parent() может быть закрыт, показываем поверх самого диалога, если он открыт
             Toast.error(self, "Ошибка сохранения", str(e))

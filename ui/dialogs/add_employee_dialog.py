@@ -1,4 +1,4 @@
-import bcrypt
+
 from PyQt6.QtCore import QDate
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -71,31 +71,19 @@ class AddEmployeeDialog(QDialog):
         login = self.inp_login.text()
         raw_pass = self.inp_pass.text() or "123"
 
-        # Хеширование пароля
-        salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(raw_pass.encode(), salt).decode()
-
+        # Пароль теперь хешируется внутри БД (pgcrypto)
         try:
-            # Прямая вставка (Триггер БД проверит возраст!)
-            success, msg = Database.execute(
-                """
-                INSERT INTO сотрудники (фио, номер_телефона, дата_рождения, должность, зарплата, login, password_hash)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
-                (fio, phone, birth, role, salary, login, hashed),
+            res = Database.call_procedure(
+                'sp_hire_employee',
+                [fio, phone, birth, role, salary, login, raw_pass]
             )
 
-            if success:
+            if res.get('status') == 'OK':
                 Toast.success(self.parent(), "Успешно", f"Сотрудник {fio} нанят!")
                 self.accept()
             else:
-                # Обработка ошибки триггера
-                if "совершеннолетним" in msg:
-                    Toast.error(self, "Ошибка возраста", "Кандидату нет 18 лет!")
-                elif "duplicate key" in msg:
-                    Toast.error(self, "Ошибка", "Такой телефон или логин уже занят!")
-                else:
-                    Toast.error(self, "Ошибка БД", msg)
+                # Сообщения об ошибках приходят из БД (возраст, уникальность и т.д.)
+                Toast.error(self, "Ошибка", res.get('message'))
 
         except Exception as e:
             Toast.error(self, "Ошибка", str(e))

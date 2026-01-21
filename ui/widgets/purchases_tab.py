@@ -51,9 +51,14 @@ class PurchasesTab(QWidget):
         btn_confirm = QPushButton("Подтвердить выполнено")
         btn_confirm.clicked.connect(self.confirm_selected)
 
+        btn_cancel = QPushButton("Отменить закупку")
+        btn_cancel.setIcon(qta.icon("fa5s.times", color="#E74C3C"))
+        btn_cancel.clicked.connect(self.cancel_selected)
+
         toolbar.addWidget(self.search_input)
         toolbar.addWidget(btn_new)
         toolbar.addWidget(btn_confirm)
+        toolbar.addWidget(btn_cancel)
         toolbar.addWidget(btn_refresh)
 
         layout.addLayout(toolbar)
@@ -145,6 +150,20 @@ class PurchasesTab(QWidget):
             )
         Toast.success(self, "ОК", "Закупка подтверждена и склад обновлён")
         self.load_purchases()
+
+    def cancel_selected(self):
+        selected = self.table.currentRow()
+        if selected < 0:
+            Toast.error(self, "Ошибка", "Выберите закупку")
+            return
+        purchase_id = int(self.table.item(selected, 0).text())
+        
+        result = Database.call_procedure("sp_cancel_purchase", [purchase_id])
+        if result.get("status") == "OK":
+            Toast.success(self, "ОК", result.get("message"))
+            self.load_purchases()
+        else:
+            Toast.error(self, "Ошибка", result.get("message", "Неизвестная ошибка"))
 
 
 class NewPurchaseDialog(QDialog):

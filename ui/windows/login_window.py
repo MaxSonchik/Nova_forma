@@ -1,8 +1,6 @@
 import os
 import sys
 
-import bcrypt
-import psycopg2
 import qtawesome as qta
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPixmap
@@ -20,6 +18,8 @@ from PyQt6.QtWidgets import (
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
+
+from db.database import Database
 from config import config
 
 
@@ -137,39 +137,24 @@ class LoginWindow(QWidget):
             self.show_error("Введите логин и пароль")
             return
 
+        # Используем вызов процедуры
         try:
-            conn = psycopg2.connect(config.DATABASE_URL)
-            cur = conn.cursor()
-
-            # Запрашиваем хеш и роль
-            cur.execute(
-                """
-                SELECT id_сотрудника, password_hash, должность, фио 
-                FROM сотрудники 
-                WHERE login = %s
-            """,
-                (login,),
-            )
-
-            user = cur.fetchone()
-            cur.close()
-            conn.close()
-
-            if user:
-                user_id, db_hash, role, fio = user
-                # Проверка хеша
-                if bcrypt.checkpw(password.encode("utf-8"), db_hash.encode("utf-8")):
-                    self.show_error("")  # Очистка ошибок
-                    print(f"Успешный вход: {role} {fio}")
-                    # Генерируем сигнал для Main.py
-                    self.loginSuccess.emit(user_id, role, fio)
-                else:
-                    self.show_error("Неверный пароль")
+            result = Database.call_procedure('sp_login', [login, password])
+            
+            if result.get('status') == 'OK':
+                self.show_error("")
+                user_id = result.get('user_id')
+                role = result.get('role')
+                fio = result.get('fio')
+                
+                self.loginSuccess.emit(user_id, role, fio)
             else:
-                self.show_error("Пользователь не найден")
+                # Ошибка (Неверный пароль или пользователь не найден)
+                msg = result.get('message', 'Ошибка входа')
+                self.show_error(msg)
 
         except Exception as e:
-            self.show_error(f"Ошибка БД: {str(e)}")
+            self.show_error(f"Системная ошибка: {str(e)}")
 
     def show_error(self, message):
         self.error_label.setText(message)

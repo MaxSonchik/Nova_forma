@@ -1,7 +1,7 @@
 import qtawesome as qta
 from PyQt6.QtCore import QDate
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QFileDialog  # <-- Добавь это
+from PyQt6.QtWidgets import QFileDialog
 from PyQt6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -17,10 +17,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from business_logic.pdf_generator import PDFGenerator  # <-- И это
+from business_logic.pdf_generator import PDFGenerator
 from db.database import Database
-from ui.dialogs.add_order_dialog import AddOrderDialog  # Не забудь импортировать!
-from ui.widgets.toast import Toast  # <-- И это
+from ui.dialogs.add_order_dialog import AddOrderDialog
+from ui.widgets.toast import Toast
 
 
 class OrdersTab(QWidget):
@@ -125,52 +125,56 @@ class OrdersTab(QWidget):
 
         layout.addWidget(self.table)
 
+        # --- КНОПКИ СТАТУСА ---
+        status_btn_layout = QHBoxLayout()
+        self.btn_to_work = QPushButton("В работу")
+        self.btn_to_work.setIcon(qta.icon("fa5s.play", color="#3498DB"))
+        self.btn_to_work.clicked.connect(lambda: self.change_status("в_работе"))
+
+        self.btn_done = QPushButton("Готово")
+        self.btn_done.setIcon(qta.icon("fa5s.check", color="#27AE60"))
+        self.btn_done.clicked.connect(lambda: self.change_status("выполнен"))
+
+        self.btn_ship = QPushButton("Отгрузить")
+        self.btn_ship.setIcon(qta.icon("fa5s.truck", color="#9B59B6"))
+        self.btn_ship.clicked.connect(lambda: self.change_status("отгружен"))
+
+        self.btn_defect = QPushButton("Зафиксировать брак")
+        self.btn_defect.setIcon(qta.icon("fa5s.exclamation-triangle", color="#E74C3C"))
+        self.btn_defect.clicked.connect(self.report_defect)
+
+        status_btn_layout.addStretch()
+        status_btn_layout.addWidget(self.btn_to_work)
+        status_btn_layout.addWidget(self.btn_done)
+        status_btn_layout.addWidget(self.btn_ship)
+        status_btn_layout.addWidget(self.btn_defect)
+        layout.addLayout(status_btn_layout)
+
     def load_data(self):
-        """Загрузка данных с Multi-criteria search"""
-        # Сразу убираем пробелы, чтобы " 5 " считалось числом
-        text_search = self.search_input.text().strip().lower()
-        status = self.status_filter.currentText()
-        d_from = self.date_from.date().toString("yyyy-MM-dd")
-        d_to = self.date_to.date().toString("yyyy-MM-dd")
+        """Загрузка данных через Хранимую Процедуру"""
+        try:
+            text_search = self.search_input.text().strip()
+            if not text_search:
+                text_search = None # Ensure it's None if empty
 
-        # Базовый запрос
-        query = "SELECT * FROM v_заказы_менеджер WHERE 1=1"
-        params = []
+            status = self.status_filter.currentText()
+            # If "Все статусы" is selected, pass None to the stored procedure
+            if status == "Все статусы":
+                status = None
 
-        is_id_search = False
+            d_from = self.date_from.date().toString("yyyy-MM-dd")
+            d_to = self.date_to.date().toString("yyyy-MM-dd")
 
-        # 1. Текстовый поиск (Клиент или ID)
-        if text_search:
-            # Пробуем искать как число (ID)
-            if text_search.isdigit():
-                query += " AND id_заказа = %s"
-                params.append(text_search)
-                is_id_search = True  # Флаг: мы ищем конкретный ID
-            else:
-                # Иначе ищем по клиенту
-                query += " AND LOWER(клиент) LIKE %s"
-                params.append(f"%{text_search}%")
+            # Вызываем функцию поиска (возвращает таблицу)
+            # Параметры: p_manager_id, p_search_text, p_status, p_date_from, p_date_to
+            query = "SELECT * FROM sp_search_orders(%s, %s, %s, %s, %s)"
+            params = (self.current_user_id, text_search, status, d_from, d_to)
 
-        # 2. Фильтр статуса
-        if status != "Все статусы":
-            if status == "ПРОСРОЧЕН":
-                query += " AND состояние_сроков = 'ПРОСРОЧЕН'"
-            else:
-                query += " AND статус = %s"
-                params.append(status)
+            orders = Database.fetch_all(query, params)
+            self.populate_table(orders)
 
-        # 3. Фильтр по дате
-        # ВАЖНО: Если мы ищем конкретный ID, даты игнорируем!
-        if not is_id_search:
-            query += " AND дата_заказа BETWEEN %s AND %s"
-            params.append(d_from)
-            params.append(d_to)
-
-        # Сортировка
-        query += " ORDER BY id_заказа DESC"
-
-        orders = Database.fetch_all(query, params)
-        self.populate_table(orders)
+        except Exception as e:
+            print(f"Ошибка загрузки заказов: {e}")
 
     def populate_table(self, orders):
         self.table.setRowCount(0)
@@ -183,14 +187,14 @@ class OrdersTab(QWidget):
                 order["клиент"],
                 order["менеджер"] if order["менеджер"] else "—",
                 str(order["дата_заказа"]),
-                order["статус"],
+                order["статус_заказа"],
                 f"{order['сумма_заказа']:,.2f} ₽",
                 order["состояние_сроков"],
             ]
 
             # --- ЛОГИКА ЦВЕТОВ ---
             row_color = None
-            st = order["статус"]
+            st = order["статус_заказа"]
             cond = order["состояние_сроков"]
 
             if cond == "ПРОСРОЧЕН":
@@ -251,3 +255,89 @@ class OrdersTab(QWidget):
 
         except Exception as e:
             Toast.error(self, "Ошибка генерации", str(e))
+
+    def change_status(self, new_status):
+        """Изменение статуса выбранного заказа"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            Toast.warning(self, "Внимание", "Выберите заказ")
+            return
+
+        row = selected_items[0].row()
+        order_id = int(self.table.item(row, 0).text())
+
+        result = Database.call_procedure("sp_update_order_status", [order_id, new_status])
+        status = result.get("status")
+        msg = result.get("message", "")
+
+        if status == "OK":
+            Toast.success(self, "Успешно", msg)
+            self.load_data()
+        else:
+            Toast.error(self, "Ошибка", msg)
+
+    def report_defect(self):
+        """Зафиксировать брак для выбранного заказа"""
+        from PyQt6.QtWidgets import QDialog, QComboBox, QSpinBox
+        
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            Toast.warning(self, "Внимание", "Выберите заказ")
+            return
+
+        row = selected_items[0].row()
+        order_id = int(self.table.item(row, 0).text())
+        
+        # Get order items
+        order_items = Database.fetch_all(
+            "SELECT sz.id_изделия, i.наименование, sz.количество_изделий "
+            "FROM состав_заказа sz "
+            "JOIN изделия i ON sz.id_изделия = i.id_изделия "
+            "WHERE sz.id_заказа = %s",
+            (order_id,)
+        )
+        
+        if not order_items:
+            Toast.warning(self, "Внимание", "В заказе нет позиций")
+            return
+        
+        # Dialog to select product and qty
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Зафиксировать брак")
+        dialog.setFixedSize(400, 250)
+        layout = QVBoxLayout(dialog)
+        
+        layout.addWidget(QLabel("Выберите изделие:"))
+        combo = QComboBox()
+        for item in order_items:
+            combo.addItem(f"{item['наименование']} (в заказе: {item['количество_изделий']})", item['id_изделия'])
+        layout.addWidget(combo)
+        
+        layout.addWidget(QLabel("Количество брака:"))
+        spin = QSpinBox()
+        spin.setRange(1, 1000)
+        layout.addWidget(spin)
+        
+        layout.addWidget(QLabel("Причина брака:"))
+        reason_input = QLineEdit()
+        reason_input.setPlaceholderText("Например: дефект материала")
+        layout.addWidget(reason_input)
+        
+        btn_ok = QPushButton("Зафиксировать")
+        btn_ok.clicked.connect(dialog.accept)
+        layout.addWidget(btn_ok)
+        
+        if dialog.exec():
+            product_id = combo.currentData()
+            qty = spin.value()
+            reason = reason_input.text().strip() or "Не указана"
+            
+            result = Database.call_procedure("sp_report_defect", [order_id, product_id, qty, reason])
+            status = result.get("status")
+            msg = result.get("message", "")
+            
+            if status == "OK" or status == "WARNING":
+                Toast.warning(self, "Брак зафиксирован", msg)
+                self.load_data()
+            else:
+                Toast.error(self, "Ошибка", msg)

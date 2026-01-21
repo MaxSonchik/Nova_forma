@@ -1,6 +1,6 @@
 ALTER TABLE изделия ADD COLUMN IF NOT EXISTS количество_на_складе INTEGER DEFAULT 0 CHECK (количество_на_складе >= 0);
 
--- Пересоздаем view с учетом новой колонки
+
 CREATE OR REPLACE VIEW v_склад_общий AS
 SELECT 'Материал' as тип, артикул_материала as артикул, наименование, количество_на_складе as количество, единица_измерения
 FROM материалы
@@ -11,7 +11,7 @@ UNION ALL
 SELECT 'Изделие', артикул_изделия, наименование, количество_на_складе, 'шт'
 FROM изделия;
 
--- 1.2. Монитор заказов - Для Менеджера
+
 CREATE OR REPLACE VIEW v_заказы_менеджер AS
 SELECT 
     z.id_заказа,
@@ -32,7 +32,7 @@ FROM заказы z
 JOIN клиенты k ON z.id_клиента = k.id_клиента
 LEFT JOIN сотрудники s ON z.id_менеджера = s.id_сотрудника;
 
--- 1.3. Задачи сборщика - Для Сборщика (видит только назначенное или свободное)
+
 CREATE OR REPLACE VIEW v_задачи_сборщика AS
 SELECT 
     pz.id_плана,
@@ -45,7 +45,7 @@ SELECT
 FROM план_заготовок pz
 JOIN заготовки z ON pz.id_заготовки = z.id_заготовки;
 
--- 1.4. Финансы и эффективность - Для Директора
+
 CREATE OR REPLACE VIEW v_отчет_директора AS
 SELECT 
     'Выручка (заказы)' as показатель, 
@@ -60,11 +60,11 @@ JOIN закупки_материалов zm ON sz.id_закупки = zm.id_за
 WHERE zm.статус = 'выполнено';
 
 
--- =============================================
--- ЧАСТЬ 2: ТРИГГЕРЫ (АВТОМАТИЗАЦИЯ)
--- =============================================
 
--- 2.1. Проверка возраста сотрудника (Бизнес-ограничение)
+
+
+
+
 CREATE OR REPLACE FUNCTION trg_check_age_func() RETURNS TRIGGER AS $$
 BEGIN
     IF (EXTRACT(YEAR FROM age(NEW.дата_рождения)) < 18) THEN
@@ -79,7 +79,7 @@ CREATE TRIGGER trg_check_age
 BEFORE INSERT OR UPDATE ON сотрудники
 FOR EACH ROW EXECUTE FUNCTION trg_check_age_func();
 
--- 2.2. Авто-расчет суммы заказа при изменении состава
+
 CREATE OR REPLACE FUNCTION trg_update_order_sum_func() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'DELETE') THEN
@@ -104,11 +104,7 @@ AFTER INSERT OR UPDATE OR DELETE ON состав_заказа
 FOR EACH ROW EXECUTE FUNCTION trg_update_order_sum_func();
 
 
--- =============================================
--- ЧАСТЬ 3: ПРОЦЕДУРЫ И ФУНКЦИИ (API)
--- =============================================
 
--- 3.1. ДИРЕКТОР: Подтверждение закупки (Пополнение склада)
 CREATE OR REPLACE PROCEDURE sp_подтвердить_закупку(p_id_закупки INTEGER)
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -121,10 +117,10 @@ BEGIN
         RAISE EXCEPTION 'Закупка уже выполнена!';
     END IF;
 
-    -- Обновляем статус
+
     UPDATE закупки_материалов SET статус = 'выполнено' WHERE id_закупки = p_id_закупки;
 
-    -- Увеличиваем остатки на складе
+
     FOR rec IN SELECT id_материала, количество FROM состав_закупки WHERE id_закупки = p_id_закупки
     LOOP
         UPDATE материалы 
@@ -134,16 +130,15 @@ BEGIN
 END;
 $$;
 
--- 3.2. ДИРЕКТОР: Подтверждение отгрузки (Финальный статус заказа)
+
 CREATE OR REPLACE PROCEDURE sp_подтвердить_отгрузку(p_id_заказа INTEGER)
 LANGUAGE plpgsql AS $$
 BEGIN
-    -- Здесь можно добавить проверку оплаты и т.д.
     UPDATE заказы SET статус = 'выполнен' WHERE id_заказа = p_id_заказа;
 END;
 $$;
 
--- 3.3. СБОРЩИК: Взять задачу в работу (Списание материалов!)
+
 CREATE OR REPLACE PROCEDURE sp_взять_задачу_в_работу(p_id_плана INTEGER, p_id_сборщика INTEGER)
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -152,7 +147,7 @@ DECLARE
     v_plan_qty INTEGER;
     v_status VARCHAR;
 BEGIN
-    -- Получаем данные задачи
+
     SELECT id_заготовки, плановое_количество, статус INTO v_id_заготовки, v_plan_qty, v_status
     FROM план_заготовок WHERE id_плана = p_id_плана;
 
@@ -160,8 +155,7 @@ BEGIN
         RAISE EXCEPTION 'Задача уже в работе или выполнена/отменена';
     END IF;
 
-    -- Проверяем наличие материалов для всей партии (или части?)
-    -- Для упрощения списываем материалы сразу на ВЕСЬ план задачи
+
     FOR rec IN SELECT id_материала, количество_материала FROM расход_материалов WHERE id_заготовки = v_id_заготовки
     LOOP
         IF (SELECT количество_на_складе FROM материалы WHERE id_материала = rec.id_материала) < (rec.количество_материала * v_plan_qty) THEN
@@ -169,7 +163,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Если всё ок, списываем и меняем статус
+
     FOR rec IN SELECT id_материала, количество_материала FROM расход_материалов WHERE id_заготовки = v_id_заготовки
     LOOP
         UPDATE материалы 
@@ -183,8 +177,7 @@ BEGIN
 END;
 $$;
 
--- 3.4. МЕНЕДЖЕР: Добавить изделие в заказ (Умная логика)
--- Возвращает текстовое сообщение о результате
+
 CREATE OR REPLACE FUNCTION sp_добавить_изделие_в_заказ(
     p_id_заказа INTEGER, 
     p_id_изделия INTEGER, 
@@ -197,31 +190,27 @@ DECLARE
     rec RECORD;
     v_msg VARCHAR := '';
 BEGIN
-    -- 1. Узнаем цену и остаток
+
     SELECT стоимость, количество_на_складе INTO v_price, v_stock 
     FROM изделия WHERE id_изделия = p_id_изделия;
     
-    -- 2. Добавляем в состав заказа (как запрос клиента)
+
     INSERT INTO состав_заказа (id_заказа, id_изделия, количество_изделий, цена_фиксированная)
     VALUES (p_id_заказа, p_id_изделия, p_количество, v_price);
 
-    -- 3. Проверка склада
+]
     IF v_stock >= p_количество THEN
-        -- Хватает: резервируем (списываем)
+        
         UPDATE изделия SET количество_на_складе = количество_на_складе - p_количество 
         WHERE id_изделия = p_id_изделия;
         RETURN 'OK: Изделия зарезервированы со склада.';
     ELSE
-        -- НЕ Хватает
         v_missing := p_количество - v_stock;
         
-        -- Списываем сколько есть
         IF v_stock > 0 THEN
             UPDATE изделия SET количество_на_складе = 0 WHERE id_изделия = p_id_изделия;
         END IF;
 
-        -- Для недостающего создаем задания в План Заготовок
-        -- Разузлование: Изделие -> Заготовки
         FOR rec IN SELECT id_заготовки, количество_заготовок 
                    FROM состав_изделия WHERE id_изделия = p_id_изделия
         LOOP

@@ -1,0 +1,10 @@
+test_client_and_order_flow (__main__.TestDBProcedures.test_client_and_order_flow) ... ok
+test_dicts (__main__.TestDBProcedures.test_dicts) ... ok
+test_exceptions (__main__.TestDBProcedures.test_exceptions)
+Проверка обработки исключений и пограничных случаев ... ok
+test_hire_employee (__main__.TestDBProcedures.test_hire_employee) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.063s
+
+OK

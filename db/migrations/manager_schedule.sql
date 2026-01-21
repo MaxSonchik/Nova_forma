@@ -1,4 +1,3 @@
--- Процедура для установки статуса дня (INSERT или UPDATE)
 CREATE OR REPLACE PROCEDURE sp_установить_статус_дня(
     p_id_сотрудника INTEGER,
     p_дата DATE,

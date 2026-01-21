@@ -13,10 +13,13 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.widgets.clients_tab import ClientsTab
+from ui.widgets.components_tab import ComponentsTab
 from ui.widgets.dashboard_tab import DashboardTab
 from ui.widgets.employees_tab import EmployeesTab
 from ui.widgets.manager_schedule_tab import ManagerScheduleTab
+from ui.widgets.nomenclature_tab import NomenclatureTab
 from ui.widgets.orders_tab import OrdersTab
+from ui.widgets.production_planning_tab import ProductionPlanningTab
 from ui.widgets.production_tab import ProductionTab
 from ui.widgets.purchases_tab import PurchasesTab
 from ui.widgets.schedule_tab import ScheduleTab
@@ -150,13 +153,16 @@ class MainWindow(QMainWindow):
         if self.role == "директор":
             self.add_menu_item("Дашборд", "fa5s.chart-line", DashboardTab())
             self.add_menu_item("Персонал", "fa5s.users", EmployeesTab())
+            self.add_menu_item("Номенклатура", "fa5s.boxes", NomenclatureTab())
+            self.add_menu_item("Заготовки", "fa5s.puzzle-piece", ComponentsTab())
             self.add_menu_item("Закупки", "fa5s.shopping-cart", PurchasesTab())
-            self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
+            self.add_menu_item("Склад", "fa5s.warehouse", WarehouseTab())
             self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id))
             self.add_menu_item("Графики", "fa5s.calendar-check", ManagerScheduleTab())
 
         elif self.role == "менеджер":
             self.add_menu_item("Заказы", "fa5s.clipboard-list", OrdersTab(self.user_id))
+            self.add_menu_item("План работ", "fa5s.tasks", ProductionPlanningTab())
             self.add_menu_item("Клиенты", "fa5s.address-book", ClientsTab())
             self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
             self.add_menu_item("Графики", "fa5s.calendar-check", ManagerScheduleTab())

@@ -17,12 +17,45 @@ class Database:
         return psycopg2.connect(config.DATABASE_URL)
 
     @staticmethod
+    def call_procedure(proc_name, params=None):
+        """
+        Вызывает хранимую процедуру и возвращает стандартный ответ:
+        {status: 'OK'|'ERROR', message: '...', ...data}
+        """
+        conn = None
+        try:
+            conn = Database.connect()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Формируем SQL: SELECT * FROM proc_name(%s, %s)
+            # Если params пустой, просто proc_name()
+            placeholders = ",".join(["%s"] * len(params)) if params else ""
+            query = f"SELECT * FROM {proc_name}({placeholders})"
+            
+            cur.execute(query, params)
+            result = cur.fetchone()
+            
+            conn.commit() # Важно закоммитить, если процедура меняет данные
+            cur.close()
+            
+            if result:
+                return dict(result)
+            return {"status": "ERROR", "message": "Процедура ничего не вернула"}
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "ERROR", "message": f"Ошибка соединения: {str(e)}"}
+        finally:
+            if conn:
+                conn.close()
+
+    @staticmethod
     def fetch_all(query, params=None):
         """Выполняет SELECT и возвращает список словарей"""
         conn = None
         try:
             conn = Database.connect()
-            # RealDictCursor позволяет обращаться к полям по имени (row['id'])
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params)
             result = cur.fetchall()
@@ -35,31 +68,17 @@ class Database:
             if conn:
                 conn.close()
 
+    # Legacy methods for compatibility, but we should move away from them
     @staticmethod
     def insert_returning(query, params=None):
-        """Выполняет INSERT с RETURNING и делает COMMIT"""
-        conn = None
-        try:
-            conn = Database.connect()
-            # Используем RealDictCursor, чтобы получить результат как словарь
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(query, params)
-            result = cur.fetchone()
-            conn.commit()  # <--- САМОЕ ВАЖНОЕ: Сохраняем изменения
-            cur.close()
-            return result
-        except Exception as e:
-            if conn:
-                conn.rollback()
-            print(f"❌ Ошибка БД (insert_returning): {e}")
-            return None
-        finally:
-            if conn:
-                conn.close()
+        return Database.fetch_one(query, params) # Just wrapper if needed, but logic is different
 
     @staticmethod
     def execute(query, params=None):
-        """Выполняет INSERT, UPDATE, DELETE, CALL"""
+        """
+        [DEPRECATED] Direct SQL execution.
+        Use call_procedure for logic.
+        """
         conn = None
         try:
             conn = Database.connect()
@@ -71,9 +90,7 @@ class Database:
         except Exception as e:
             if conn:
                 conn.rollback()
-            error_msg = str(e).split("\n")[0]  # Берем первую строку ошибки
-            print(f"❌ Ошибка БД (execute): {error_msg}")
-            return False, error_msg
+            return False, str(e)
         finally:
             if conn:
                 conn.close()
@@ -87,6 +104,10 @@ class Database:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params)
             result = cur.fetchone()
+            # Если это insert/update returning, надо коммитить!
+            if query.strip().upper().startswith("INSERT") or query.strip().upper().startswith("UPDATE"):
+                conn.commit()
+            
             cur.close()
             return result
         except Exception as e:

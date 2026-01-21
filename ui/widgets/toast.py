@@ -32,9 +32,13 @@ class Toast(QWidget):
 
     def __init__(self, parent, title, message, theme_key):
         super().__init__(parent)
+        self.full_title = title
+        self.full_message = message
+        self.theme_key = theme_key
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.SubWindow)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # СБРОС ГЛОБАЛЬНЫХ СТИЛЕЙ (Убирает белые прямоугольники)
         self.setStyleSheet("background: transparent; border: none;")
@@ -60,9 +64,10 @@ class Toast(QWidget):
         icon_label.setStyleSheet("background: transparent; border: none;")  # Страховка
         layout.addWidget(icon_label)
 
-        # Текст (Черный/Темный)
+        # Текст (Черный/Темный) - truncated if long
+        display_msg = message[:60] + "..." if len(message) > 60 else message
         msg_label = QLabel(
-            f"<b style='font-size:14px; color:#2C3E50'>{title}</b><br><span style='font-size:13px; color:#404040'>{message}</span>"
+            f"<b style='font-size:14px; color:#2C3E50'>{title}</b><br><span style='font-size:13px; color:#404040'>{display_msg}</span>"
         )
         msg_label.setWordWrap(True)
         msg_label.setStyleSheet("background: transparent; border: none;")  # Страховка
@@ -86,6 +91,31 @@ class Toast(QWidget):
 
         self.adjust_position(parent)
         self.show()
+
+    def mousePressEvent(self, event):
+        """Показать полное сообщение при клике"""
+        # Сразу останавливаем таймер и любые анимации, чтобы виджет не удалился во время просмотра
+        if self.timer.isActive():
+            self.timer.stop()
+        if self.anim.state() == QPropertyAnimation.State.Running:
+            self.anim.stop()
+        
+        # Устанавливаем полную непрозрачность, если анимация была прервана
+        self.opacity_effect.setOpacity(1.0)
+
+        from PyQt6.QtWidgets import QMessageBox
+        icon_map = {
+            "SUCCESS": QMessageBox.Icon.Information,
+            "WARNING": QMessageBox.Icon.Warning,
+            "ERROR": QMessageBox.Icon.Critical,
+            "INFO": QMessageBox.Icon.Information,
+        }
+        msg_box = QMessageBox(self.parent())
+        msg_box.setIcon(icon_map.get(self.theme_key, QMessageBox.Icon.Information))
+        msg_box.setWindowTitle(self.full_title)
+        msg_box.setText(self.full_message)
+        msg_box.exec()
+        self.close()
 
     def adjust_position(self, parent):
         if not parent:
