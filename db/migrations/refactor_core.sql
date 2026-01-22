@@ -61,13 +61,13 @@ CREATE OR REPLACE FUNCTION sp_search_orders(
     ) LANGUAGE plpgsql AS $$ BEGIN RETURN QUERY
 SELECT z.id_заказа,
     z.клиент::VARCHAR,
-    z.менеджер::VARCHAR,
+    COALESCE(z.менеджер, '—')::VARCHAR,
     z.дата_заказа,
     z.дата_готовности,
     z.статус::VARCHAR,
-    z.сумма_заказа::NUMERIC,
-    z.позиций_в_заказе,
-    z.состояние_сроков
+    COALESCE(z.сумма_заказа, 0)::NUMERIC,
+    z.позиций_в_заказе::BIGINT,
+    z.состояние_сроков::TEXT
 FROM v_заказы_менеджер z
 WHERE (
         p_search_text IS NULL

@@ -14,9 +14,10 @@ from config import config
 fake = Faker("ru_RU")
 
 
-def hash_password(password):
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode(), salt).decode()
+def hash_password_via_db(cur, password):
+    """Использует pgcrypto для хеширования, чтобы быть совместимым с sp_login"""
+    cur.execute("SELECT crypt(%s, gen_salt('bf'))", (password,))
+    return cur.fetchone()[0]
 
 
 def seed():
@@ -165,7 +166,7 @@ def seed():
         for z_id in used_zags:
             cur.execute(
                 """
-                INSERT INTO состав_изделия (id_изделия, id_заготовки, количество_заготовок)
+                INSERT INTO состав_изделия (id_изделия, id_заготовки, количество_заготовки)
                 VALUES (%s, %s, %s)
             """,
                 (p_id, z_id, random.randint(1, 4)),
@@ -200,7 +201,7 @@ def seed():
         else:
             login = f"user_{i+1}"
 
-        hashed = hash_password("123")
+        hashed = hash_password_via_db(cur, "123")
 
         cur.execute(
             """
@@ -352,7 +353,7 @@ def seed():
         for p_id, p_qty in order_items:
             # Получаем заготовки для изделия
             cur.execute(
-                "SELECT id_заготовки, количество_заготовок FROM состав_изделия WHERE id_изделия = %s",
+                "SELECT id_заготовки, количество_заготовки FROM состав_изделия WHERE id_изделия = %s",
                 (p_id,),
             )
             parts = cur.fetchall()
@@ -360,20 +361,37 @@ def seed():
             for z_id, z_qty_per_item in parts:
                 total_parts_needed = p_qty * z_qty_per_item
                 assembler = random.choice(employees_ids)
+                
+                # Корректная логика статусов: выполнено только если факт >= план
+                fact_qty = random.randint(0, total_parts_needed)
+                if fact_qty >= total_parts_needed:
+                    status = "выполнено"
+                elif fact_qty > 0:
+                    status = "в_работе"
+                else:
+                    status = "принято"
 
                 cur.execute(
                     """
-                    INSERT INTO план_заготовок (id_заказа, id_заготовки, id_сборщика, плановое_количество, фактическое_количество, дата_план, статус)
+                    INSERT INTO план_заготовок (id_заготовки, id_заказа, id_сотрудника, плановое_количество, фактическое_количество, дата_план, статус)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id_заготовки, id_заказа) DO UPDATE SET 
+                        плановое_количество = план_заготовок.плановое_количество + EXCLUDED.плановое_количество,
+                        фактическое_количество = план_заготовок.фактическое_количество + EXCLUDED.фактическое_количество,
+                        статус = CASE 
+                            WHEN (план_заготовок.фактическое_количество + EXCLUDED.фактическое_количество) >= (план_заготовок.плановое_количество + EXCLUDED.плановое_количество) THEN 'выполнено'
+                            WHEN (план_заготовок.фактическое_количество + EXCLUDED.фактическое_количество) > 0 THEN 'в_работе'
+                            ELSE 'принято'
+                        END
                 """,
                     (
-                        o_id,
                         z_id,
+                        o_id,
                         assembler,
                         total_parts_needed,
-                        random.randint(0, total_parts_needed),
+                        fact_qty,
                         fake.future_date(end_date="+14d"),
-                        random.choice(["принято", "в_работе", "выполнено"]),
+                        status,
                     ),
                 )
 

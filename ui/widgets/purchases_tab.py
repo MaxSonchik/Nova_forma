@@ -73,6 +73,8 @@ class PurchasesTab(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.doubleClicked.connect(self.show_details)
         layout.addWidget(self.table)
 
     def load_purchases(self):
@@ -165,6 +167,53 @@ class PurchasesTab(QWidget):
         else:
             Toast.error(self, "Ошибка", result.get("message", "Неизвестная ошибка"))
 
+    def show_details(self):
+        """Show popup with purchase details"""
+        selected = self.table.currentRow()
+        if selected < 0:
+            return
+            
+        purchase_id = int(self.table.item(selected, 0).text())
+        
+        # Get items for this purchase
+        items = Database.fetch_all(
+            """
+            SELECT m.наименование, sz.количество, sz.цена_закупки 
+            FROM состав_закупки sz 
+            JOIN материалы m ON sz.id_материала = m.id_материала 
+            WHERE sz.id_закупки = %s
+            """,
+            (purchase_id,)
+        )
+        
+        # Create simple dialog
+        d = QDialog(self)
+        d.setWindowTitle(f"Состав закупки #{purchase_id}")
+        d.resize(500, 300)
+        
+        layout = QVBoxLayout(d)
+        
+        table = QTableWidget()
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["Материал", "Кол-во", "Цена"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        
+        table.setRowCount(len(items))
+        for i, item in enumerate(items):
+            table.setItem(i, 0, QTableWidgetItem(item["наименование"]))
+            table.setItem(i, 1, QTableWidgetItem(str(item["количество"])))
+            table.setItem(i, 2, QTableWidgetItem(f"{item['цена_закупки']:.2f}"))
+            
+        layout.addWidget(table)
+        
+        btn = QPushButton("Закрыть")
+        btn.clicked.connect(d.accept)
+        layout.addWidget(btn)
+        
+        d.exec()
+        
 
 class NewPurchaseDialog(QDialog):
     def __init__(self, parent=None):

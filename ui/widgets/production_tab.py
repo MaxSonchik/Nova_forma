@@ -58,9 +58,9 @@ class ProductionTab(QWidget):
 
         # --- ТАБЛИЦА ---
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
-            ["ID", "Заготовка", "План", "Факт", "Дедлайн", "Статус", "Исполнитель"]
+            ["ID заготовки", "ID заказа", "Заготовка", "План", "Факт", "Дедлайн", "Статус", "Исполнитель"]
         )
         self.table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Stretch
@@ -118,17 +118,20 @@ class ProductionTab(QWidget):
         for row_idx, task in enumerate(tasks):
             self.table.insertRow(row_idx)
 
-            # Сохраняем ID задачи для кнопок
-            task_id = task["id_плана"]
+            # Сохраняем составной ключ задачи
+            id_заготовки = task["id_заготовки"]
+            id_заказа = task["id_заказа"]
 
             items = [
-                str(task_id),
+                str(id_заготовки),
+                str(id_заказа),
                 task["заготовка"],
                 str(task["плановое_количество"]),
                 str(task["фактическое_количество"]),
                 str(task["дедлайн"]),
                 task["статус"],
-                "Я" if task["id_сборщика"] == self.user_id else "Свободно",
+                # Корректное отображение исполнителя
+                "Свободно" if task["id_сборщика"] is None else ("Я" if task["id_сборщика"] == self.user_id else "Занято"),
             ]
 
             # Цвета
@@ -194,10 +197,10 @@ class ProductionTab(QWidget):
 
         # --- ПОПЫТКА ВЗЯТЬ ---
         try:
-            # Вызов процедуры
+            # Вызов процедуры с составным ключом
             success, msg = Database.execute(
-                "CALL sp_взять_задачу_в_работу(%s, %s)",
-                (task["id_плана"], self.user_id),
+                "CALL sp_взять_задачу_в_работу(%s, %s, %s)",
+                (task["id_заготовки"], task["id_заказа"], self.user_id),
             )
             if success:
                 Toast.success(
@@ -243,7 +246,7 @@ class ProductionTab(QWidget):
 
         if ok:
             success, msg = Database.execute(
-                "CALL sp_сдать_работу(%s, %s)", (task["id_плана"], qty)
+                "CALL sp_сдать_работу(%s, %s, %s)", (task["id_заготовки"], task["id_заказа"], qty)
             )
             if success:
                 Toast.success(self, "Принято", f"Принято {qty} шт.")

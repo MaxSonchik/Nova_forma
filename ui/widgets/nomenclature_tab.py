@@ -1,6 +1,7 @@
 import qtawesome as qta
 from PyQt6.QtWidgets import (
     QDialog,
+    QDoubleSpinBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -35,17 +36,24 @@ class NomenclatureTab(QWidget):
 
         # Toolbar
         toolbar = QHBoxLayout()
+        
+        btn_add = QPushButton("Новое изделие")
+        btn_add.setIcon(qta.icon("fa5s.plus", color="#27AE60"))
+        btn_add.clicked.connect(self.add_product)
+        
         btn_refresh = QPushButton("Обновить")
         btn_refresh.setIcon(qta.icon("fa5s.sync-alt"))
         btn_refresh.clicked.connect(self.load_data)
+        
+        toolbar.addWidget(btn_add)
         toolbar.addStretch()
         toolbar.addWidget(btn_refresh)
         layout.addLayout(toolbar)
 
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["ID", "Наименование", "Цена", "На складе"])
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["ID", "Артикул", "Наименование", "Тип", "Размеры", "Цена", "На складе"])
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -81,9 +89,12 @@ class NomenclatureTab(QWidget):
         for i, p in enumerate(products):
             self.table.insertRow(i)
             self.table.setItem(i, 0, QTableWidgetItem(str(p["id_изделия"])))
-            self.table.setItem(i, 1, QTableWidgetItem(p["наименование"]))
-            self.table.setItem(i, 2, QTableWidgetItem(f"{p['стоимость']:,.2f} ₽"))
-            self.table.setItem(i, 3, QTableWidgetItem(str(p["количество_на_складе"])))
+            self.table.setItem(i, 1, QTableWidgetItem(p["артикул"]))
+            self.table.setItem(i, 2, QTableWidgetItem(p["наименование"]))
+            self.table.setItem(i, 3, QTableWidgetItem(p["тип"]))
+            self.table.setItem(i, 4, QTableWidgetItem(p["размеры"]))
+            self.table.setItem(i, 5, QTableWidgetItem(f"{p['стоимость']:,.2f} ₽"))
+            self.table.setItem(i, 6, QTableWidgetItem(str(p["количество_на_складе"])))
 
     def on_selection_changed(self):
         """При выборе изделия показываем его состав"""
@@ -132,6 +143,12 @@ class NomenclatureTab(QWidget):
 
         dialog = ProductComponentsDialog(self, product_id, product_name)
         dialog.exec()
+
+    def add_product(self):
+        """Open dialog to create new product"""
+        dialog = AddProductDialog(self)
+        if dialog.exec():
+            self.load_data()
 
 
 class EditProductDialog(QDialog):
@@ -319,4 +336,187 @@ class ProductComponentsDialog(QDialog):
                 self.load_components()
             else:
                 Toast.error(self, "Ошибка", result.get("message", "Неизвестная ошибка"))
+
+
+class AddProductDialog(QDialog):
+    """Dialog to create a new product with components"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Новое изделие")
+        self.resize(800, 600)
+        self.chosen_components = []
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        # 1. Basic Info
+        form_layout = QHBoxLayout()
+        
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Название изделия...")
+        
+        self.type_input = QLineEdit()
+        self.type_input.setPlaceholderText("Тип (Шкаф, Стол...)")
+        
+        self.size_input = QLineEdit()
+        self.size_input.setPlaceholderText("Размеры (2000x600x400)")
+        
+        self.price_input = QDoubleSpinBox()
+        self.price_input.setRange(0, 1000000)
+        self.price_input.setPrefix("Цена: ")
+        self.price_input.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.NoButtons)
+
+        form_layout.addWidget(self.name_input)
+        form_layout.addWidget(self.type_input)
+        form_layout.addWidget(self.size_input)
+        form_layout.addWidget(self.price_input)
+        
+        layout.addLayout(form_layout)
+
+        # 2. Components Selection
+        layout.addWidget(QLabel("Состав изделия (заготовки):"))
+        
+        comp_layout = QHBoxLayout()
+        self.comp_search = QLineEdit()
+        self.comp_search.setPlaceholderText("Поиск заготовки...")
+        self.comp_search.textChanged.connect(self.load_components)
+        comp_layout.addWidget(self.comp_search)
+        layout.addLayout(comp_layout)
+
+        self.table_comps = QTableWidget()
+        self.table_comps.setColumnCount(3)
+        self.table_comps.setHorizontalHeaderLabels(["ID", "Наименование", "На складе"])
+        self.table_comps.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table_comps.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table_comps.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table_comps)
+
+        # 3. Add Button
+        btn_add = QPushButton("Добавить в состав")
+        btn_add.clicked.connect(self.add_component_to_list)
+        layout.addWidget(btn_add)
+
+        # 4. Selected Components List
+        layout.addWidget(QLabel("Выбранные компоненты:"))
+        self.list_selected = QTableWidget()
+        self.list_selected.setColumnCount(3)
+        self.list_selected.setHorizontalHeaderLabels(["ID", "Заготовка", "Кол-во"])
+        self.list_selected.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.list_selected.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.list_selected.setMaximumHeight(150)
+        layout.addWidget(self.list_selected)
+
+        # 5. Dialog Buttons
+        btns = QHBoxLayout()
+        ok_btn = QPushButton("Создать изделие")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.clicked.connect(self.reject)
+        btns.addStretch()
+        btns.addWidget(ok_btn)
+        btns.addWidget(cancel_btn)
+        layout.addLayout(btns)
+
+        self.load_components()
+
+    def load_components(self):
+        text = self.comp_search.text().strip().lower()
+        query = "SELECT id_заготовки, наименование, количество_готовых FROM заготовки WHERE 1=1"
+        params = []
+        if text:
+            query += " AND LOWER(наименование) LIKE %s"
+            params.append(f"%{text}%")
+        
+        rows = Database.fetch_all(query, params)
+        self.table_comps.setRowCount(0)
+        for i, r in enumerate(rows):
+            self.table_comps.insertRow(i)
+            self.table_comps.setItem(i, 0, QTableWidgetItem(str(r["id_заготовки"])))
+            self.table_comps.setItem(i, 1, QTableWidgetItem(r["наименование"]))
+            self.table_comps.setItem(i, 2, QTableWidgetItem(str(r["количество_готовых"])))
+
+    def add_component_to_list(self):
+        row = self.table_comps.currentRow()
+        if row < 0:
+            Toast.warning(self, "Внимание", "Выберите заготовку из списка выше")
+            return
+            
+        id_zag = int(self.table_comps.item(row, 0).text())
+        name_zag = self.table_comps.item(row, 1).text()
+        
+        # Ask quantity
+        from PyQt6.QtWidgets import QSpinBox
+        d = QDialog(self)
+        d.setWindowTitle(f"Количество: {name_zag}")
+        l = QVBoxLayout(d)
+        
+        form = QHBoxLayout()
+        s = QSpinBox()
+        s.setRange(1, 100)
+        s.setValue(1)
+        form.addWidget(QLabel("Кол-во:"))
+        form.addWidget(s)
+        l.addLayout(form)
+        
+        btn = QPushButton("OK")
+        btn.clicked.connect(d.accept)
+        l.addWidget(btn)
+        
+        if d.exec():
+            qty = s.value()
+            # Check if already added
+            for c in self.chosen_components:
+                if c["id"] == id_zag:
+                    c["qty"] += qty
+                    self.refresh_selected_list()
+                    return
+            
+            self.chosen_components.append({"id": id_zag, "name": name_zag, "qty": qty})
+            self.refresh_selected_list()
+
+    def refresh_selected_list(self):
+        self.list_selected.setRowCount(0)
+        for i, c in enumerate(self.chosen_components):
+            self.list_selected.insertRow(i)
+            self.list_selected.setItem(i, 0, QTableWidgetItem(str(c["id"])))
+            self.list_selected.setItem(i, 1, QTableWidgetItem(c["name"]))
+            self.list_selected.setItem(i, 2, QTableWidgetItem(str(c["qty"])))
+
+    def accept(self):
+        name = self.name_input.text().strip()
+        price = self.price_input.value()
+        
+        if not name:
+            Toast.warning(self, "Ошибка", "Введите название изделия")
+            return
+            
+        if not self.chosen_components:
+            Toast.warning(self, "Ошибка", "Добавьте хотя бы одну заготовку в состав")
+            return
+
+        # 1. Generate SKU and Insert product
+        import random
+        import string
+        sku = "PRD-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        
+        res_prod = Database.insert_returning(
+            "INSERT INTO изделия (артикул_изделия, наименование, тип, размеры, стоимость, количество_на_складе) VALUES (%s, %s, %s, %s, %s, 0) RETURNING id_изделия",
+            (sku, name, self.type_input.text(), self.size_input.text(), price)
+        )
+        if not res_prod:
+             Toast.error(self, "Ошибка", "Не удалось создать изделие")
+             return
+             
+        p_id = res_prod["id_изделия"]
+        
+        # 2. Insert components
+        for c in self.chosen_components:
+            Database.execute(
+                "INSERT INTO состав_изделия (id_изделия, id_заготовки, количество_заготовки) VALUES (%s, %s, %s)",
+                (p_id, c["id"], c["qty"])
+            )
+            
+        Toast.success(self, "Успешно", f"Изделие '{name}' создано")
+        super().accept()
 

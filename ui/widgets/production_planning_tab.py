@@ -50,9 +50,9 @@ class ProductionPlanningTab(QWidget):
 
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels([
-            "ID", "Заготовка", "План", "Факт", "Дедлайн", "Статус", "Сборщик"
+            "ID заготовки", "ID заказа", "Заготовка", "План", "Факт", "Дедлайн", "Статус", "Сборщик"
         ])
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -80,38 +80,42 @@ class ProductionPlanningTab(QWidget):
         self.table.setRowCount(0)
         for i, t in enumerate(tasks):
             self.table.insertRow(i)
-            self.table.setItem(i, 0, QTableWidgetItem(str(t["id_плана"])))
-            self.table.setItem(i, 1, QTableWidgetItem(t["заготовка"]))
-            self.table.setItem(i, 2, QTableWidgetItem(str(t["плановое_количество"])))
-            self.table.setItem(i, 3, QTableWidgetItem(str(t["фактическое_количество"] or 0)))
-            self.table.setItem(i, 4, QTableWidgetItem(str(t["дедлайн"])))
-            self.table.setItem(i, 5, QTableWidgetItem(t["статус"]))
-            self.table.setItem(i, 6, QTableWidgetItem(t["сборщик"]))
+            self.table.setItem(i, 0, QTableWidgetItem(str(t["id_заготовки"])))
+            self.table.setItem(i, 1, QTableWidgetItem(str(t["id_заказа"])))
+            self.table.setItem(i, 2, QTableWidgetItem(t["заготовка"]))
+            self.table.setItem(i, 3, QTableWidgetItem(str(t["плановое_количество"])))
+            self.table.setItem(i, 4, QTableWidgetItem(str(t["фактическое_количество"] or 0)))
+            self.table.setItem(i, 5, QTableWidgetItem(str(t["дедлайн"])))
+            self.table.setItem(i, 6, QTableWidgetItem(t["статус"]))
+            self.table.setItem(i, 7, QTableWidgetItem(t["сборщик"]))
 
-    def get_selected_plan_id(self):
+    def get_selected_composite_key(self):
+        """Returns (id_заготовки, id_заказа) or None"""
         selected = self.table.selectedItems()
         if not selected:
-            return None
+            return None, None
         row = selected[0].row()
-        return int(self.table.item(row, 0).text())
+        id_заготовки = int(self.table.item(row, 0).text())
+        id_заказа = int(self.table.item(row, 1).text())
+        return id_заготовки, id_заказа
 
     def assign_worker(self):
-        plan_id = self.get_selected_plan_id()
-        if not plan_id:
+        id_заготовки, id_заказа = self.get_selected_composite_key()
+        if not id_заготовки:
             Toast.warning(self, "Внимание", "Выберите задачу")
             return
 
-        dialog = AssignWorkerDialog(self, plan_id)
+        dialog = AssignWorkerDialog(self, id_заготовки, id_заказа)
         if dialog.exec():
             self.load_data()
 
     def release_task(self):
-        plan_id = self.get_selected_plan_id()
-        if not plan_id:
+        id_заготовки, id_заказа = self.get_selected_composite_key()
+        if not id_заготовки:
             Toast.warning(self, "Внимание", "Выберите задачу")
             return
 
-        result = Database.call_procedure("sp_release_task", [plan_id])
+        result = Database.call_procedure("sp_release_task", [id_заготовки, id_заказа])
         status = result.get("status")
         msg = result.get("message", "")
 
@@ -128,9 +132,10 @@ class ProductionPlanningTab(QWidget):
 
 
 class AssignWorkerDialog(QDialog):
-    def __init__(self, parent, plan_id):
+    def __init__(self, parent, id_заготовки, id_заказа):
         super().__init__(parent)
-        self.plan_id = plan_id
+        self.id_заготовки = id_заготовки
+        self.id_заказа = id_заказа
         self.setWindowTitle("Назначить сборщика")
         self.setFixedSize(350, 150)
 
@@ -160,7 +165,7 @@ class AssignWorkerDialog(QDialog):
             QMessageBox.warning(self, "Ошибка", "Выберите сборщика")
             return
 
-        result = Database.call_procedure("sp_assign_worker_to_task", [self.plan_id, worker_id])
+        result = Database.call_procedure("sp_assign_worker_to_task", [self.id_заготовки, self.id_заказа, worker_id])
         status = result.get("status")
         msg = result.get("message", "")
 

@@ -65,8 +65,8 @@ class OrdersTab(QWidget):
         self.date_from = QDateEdit()
         self.date_from.setCalendarPopup(True)
         self.date_from.setDate(
-            QDate.currentDate().addMonths(-1)
-        )  # По умолчанию - месяц назад
+            QDate(2020, 1, 1)
+        )  # По умолчанию - с 2020 года
         self.date_from.dateChanged.connect(self.load_data)
 
         lbl_to = QLabel("-")
@@ -143,11 +143,16 @@ class OrdersTab(QWidget):
         self.btn_defect.setIcon(qta.icon("fa5s.exclamation-triangle", color="#E74C3C"))
         self.btn_defect.clicked.connect(self.report_defect)
 
+        self.btn_cancel = QPushButton("Отменить")
+        self.btn_cancel.setIcon(qta.icon("fa5s.ban", color="#7F8C8D"))
+        self.btn_cancel.clicked.connect(lambda: self.change_status("отменен"))
+
         status_btn_layout.addStretch()
         status_btn_layout.addWidget(self.btn_to_work)
         status_btn_layout.addWidget(self.btn_done)
         status_btn_layout.addWidget(self.btn_ship)
         status_btn_layout.addWidget(self.btn_defect)
+        status_btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(status_btn_layout)
 
     def load_data(self):

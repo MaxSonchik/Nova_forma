@@ -164,15 +164,15 @@ class PDFGenerator:
             JOIN заказы o ON pz.id_заказа = o.id_заказа
             JOIN состав_заказа sz ON o.id_заказа = sz.id_заказа -- Приблизительная связь для инфо
             JOIN изделия m ON sz.id_изделия = m.id_изделия
-            WHERE pz.id_сборщика = %s AND pz.статус IN ('в_работе', 'принято')
-            GROUP BY pz.id_плана, z.наименование, pz.плановое_количество, pz.фактическое_количество, m.наименование, o.id_заказа
+            WHERE pz.id_сотрудника = %s AND pz.статус IN ('в_работе', 'принято')
+            GROUP BY pz.id_заготовки, pz.id_заказа, z.наименование, pz.плановое_количество, pz.фактическое_количество, m.наименование, o.id_заказа
         """
         # Упростим запрос, чтобы не дублировать строки из-за join'ов (взять просто задачи)
         query = """
-            SELECT pz.id_плана, z.наименование, pz.плановое_количество, pz.фактическое_количество
+            SELECT pz.id_заготовки, pz.id_заказа, z.наименование, pz.плановое_количество, pz.фактическое_количество
             FROM план_заготовок pz
             JOIN заготовки z ON pz.id_заготовки = z.id_заготовки
-            WHERE pz.id_сборщика = %s AND pz.статус IN ('в_работе')
+            WHERE pz.id_сотрудника = %s AND pz.статус IN ('в_работе')
         """
         tasks = Database.fetch_all(query, (user_id,))
 
@@ -226,7 +226,7 @@ class PDFGenerator:
             plan = task["плановое_количество"]
             fact = task["фактическое_количество"]
 
-            c.drawString(margin + 5, y, str(task["id_плана"]))
+            c.drawString(margin + 5, y, f"{task['id_заготовки']}-{task['id_заказа']}")
             c.drawString(margin + 40, y, task["наименование"][:45])
             c.drawString(margin + 300, y, str(plan))
             c.drawString(margin + 350, y, str(fact))
