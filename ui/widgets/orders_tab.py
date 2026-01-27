@@ -122,6 +122,7 @@ class OrdersTab(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.doubleClicked.connect(self.show_order_details)
 
         layout.addWidget(self.table)
 
@@ -224,10 +225,20 @@ class OrdersTab(QWidget):
                 self.table.setItem(row_idx, col_idx, item)
 
     def open_add_order_dialog(self):
-        # Передаем ID менеджера в диалог
-        dialog = AddOrderDialog(self, manager_id=self.current_user_id)
-        if dialog.exec():  # Если нажали "Создать"
-            self.load_data()  # Обновляем таблицу заказов
+        from ui.dialogs.add_order_dialog import AddOrderDialog
+        
+        # Получаем ID текущего менеджера (пользователя)
+        dialog = AddOrderDialog(self, self.current_user_id)
+        if dialog.exec():
+            self.load_data()
+            
+            # Check for navigation request
+            if dialog.navigate_to_plan_order_id:
+                # Access main window
+                main = self.window()
+                # Duck typing check or import verification
+                if hasattr(main, "switch_to_production_plan"):
+                    main.switch_to_production_plan(dialog.navigate_to_plan_order_id)  # Обновляем таблицу заказов
 
     def print_order(self):
         # 1. Получаем ID выделенного заказа
@@ -259,7 +270,27 @@ class OrdersTab(QWidget):
                 Toast.error(self, "Ошибка", msg)
 
         except Exception as e:
-            Toast.error(self, "Ошибка генерации", str(e))
+            Toast.error(self, "Ошибка при обновлении", str(e))
+
+    def show_order_details(self):
+        """Открывает диалог с составом заказа при двойном клике"""
+        row = self.table.currentRow()
+        if row < 0:
+            return
+            
+        try:
+            item_id = self.table.item(row, 0)
+            if not item_id:
+                return
+                
+            order_id = int(item_id.text())
+            
+            from ui.dialogs.order_details_dialog import OrderDetailsDialog
+            dialog = OrderDetailsDialog(self, order_id)
+            dialog.exec()
+            
+        except Exception as e:
+            Toast.error(self, "Ошибка", f"Не удалось открыть заказ: {e}")
 
     def change_status(self, new_status):
         """Изменение статуса выбранного заказа"""

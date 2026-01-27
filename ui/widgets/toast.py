@@ -165,3 +165,7 @@ class Toast(QWidget):
     @staticmethod
     def error(parent, title, message):
         Toast.notify(parent, title, message, "ERROR")
+
+    @staticmethod
+    def info(parent, title, message):
+        Toast.notify(parent, title, message, "INFO")

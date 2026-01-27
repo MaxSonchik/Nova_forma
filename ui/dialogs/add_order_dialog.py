@@ -1,5 +1,5 @@
 import qtawesome as qta
-from PyQt6.QtCore import QDate
+from PyQt6.QtCore import QDate, Qt
 from PyQt6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -19,6 +19,78 @@ from db.database import Database
 from ui.widgets.toast import Toast
 
 
+class OrderTasksDialog(QDialog):
+    """Dialog to display tasks created by an order"""
+    
+    def __init__(self, parent, order_id, warnings=None):
+        super().__init__(parent)
+        self.order_id = order_id
+        self.setWindowTitle(f"Задачи заказа №{order_id}")
+        self.resize(600, 400)
+        
+        layout = QVBoxLayout(self)
+        
+        # Header with warnings if any
+        if warnings:
+            warn_label = QLabel("<b>Замечания:</b>")
+            layout.addWidget(warn_label)
+            for w in warnings:
+                layout.addWidget(QLabel(w))
+            layout.addSpacing(10)
+        
+        # Title
+        layout.addWidget(QLabel(f"<h3>Созданные производственные задачи:</h3>"))
+        
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Тип", "Наименование", "Количество", "Статус"])
+        
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        
+        layout.addWidget(self.table)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_close = QPushButton("Закрыть")
+        btn_close.clicked.connect(self.accept)
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_close)
+        layout.addLayout(btn_layout)
+        
+        self.load_tasks()
+    
+    def load_tasks(self):
+        """Load tasks from database"""
+        try:
+            tasks = Database.fetch_all(
+                "SELECT * FROM sp_get_order_tasks(%s)",
+                (self.order_id,)
+            )
+            
+            self.table.setRowCount(0)
+            
+            for i, t in enumerate(tasks):
+                self.table.insertRow(i)
+                
+                # Type with icon
+                type_text = "🔧 Заготовка" if t['тип_задачи'] == 'заготовка' else "📦 Сборка"
+                self.table.setItem(i, 0, QTableWidgetItem(type_text))
+                self.table.setItem(i, 1, QTableWidgetItem(t['наименование']))
+                self.table.setItem(i, 2, QTableWidgetItem(str(t['плановое_количество'])))
+                self.table.setItem(i, 3, QTableWidgetItem(t['статус']))
+                
+        except Exception as e:
+            Toast.error(self, "Ошибка загрузки", str(e))
+
+
 class AddOrderDialog(QDialog):
     def __init__(self, parent=None, manager_id=None):
         super().__init__(parent)
@@ -28,6 +100,7 @@ class AddOrderDialog(QDialog):
 
         # Корзина: список словарей {'id': 1, 'name': '...', 'qty': 2, 'price': 100}
         self.cart_items = []
+        self.navigate_to_plan_order_id = None
 
         self.setup_ui()
         self.load_dictionaries()
@@ -220,8 +293,31 @@ class AddOrderDialog(QDialog):
 
             # Успех
             if warnings:
-                short_msg = "Заказ создан, но есть замечания:\n" + "\n".join(warnings)
-                Toast.warning(self.parent(), "Внимание", short_msg)
+                # Check if any warning is a critical purchase error
+                is_critical = any("НЕОБХОДИМА ЗАКУПКА" in w for w in warnings)
+
+                if is_critical:
+                    # Critical error - show error dialog
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle("Ошибка создания заказа")
+                    msg_box.setText("Заказ не может быть полностью сформирован!")
+                    msg_box.setInformativeText("Критическая нехватка материалов:\n" + "\n".join(warnings))
+                    msg_box.setIcon(QMessageBox.Icon.Critical)
+                    msg_box.exec()
+                else:
+                    # Production tasks created - show tasks dialog
+                    tasks_dialog = OrderTasksDialog(self, order_id, warnings)
+                    tasks_dialog.exec()
+                    
+                    # Ask if user wants to navigate to plan
+                    reply = QMessageBox.question(
+                        self,
+                        "Заказ создан",
+                        f"Заказ №{order_id} успешно создан!\nОтобразить в плане работ?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self.navigate_to_plan_order_id = order_id
             else:
                 Toast.success(self.parent(), "Успешно", f"Заказ №{order_id} создан!")
 

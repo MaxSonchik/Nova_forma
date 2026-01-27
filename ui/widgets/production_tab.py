@@ -60,11 +60,11 @@ class ProductionTab(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
-            ["ID заготовки", "ID заказа", "Заготовка", "План", "Факт", "Дедлайн", "Статус", "Исполнитель"]
+            ["ID", "Заготовка", "Заказ", "План", "Факт", "Дедлайн", "Статус", "Сборщик"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
@@ -73,17 +73,6 @@ class ProductionTab(QWidget):
         # --- КНОПКИ ДЕЙСТВИЙ ---
         action_layout = QHBoxLayout()
 
-        self.btn_take = QPushButton("Взять в работу")
-        self.btn_take.setObjectName("PrimaryButton")
-        self.btn_take.clicked.connect(self.take_task)
-
-        self.btn_report = QPushButton("Сдать работу (+ кол-во)")
-        self.btn_report.setStyleSheet(
-            "background-color: #27AE60; color: white; padding: 12px; border-radius: 5px;"
-        )
-        self.btn_report.clicked.connect(self.report_progress)
-
-        action_layout.addWidget(self.btn_take)
         action_layout.addWidget(self.btn_report)
 
         layout.addLayout(action_layout)
@@ -96,66 +85,74 @@ class ProductionTab(QWidget):
         params = []
 
         if filter_mode == "Актуальные (Новые + Мои)":
-            # ИСПРАВЛЕНО: status -> статус
             query += " AND (статус != 'выполнено' AND (id_сборщика IS NULL OR id_сборщика = %s))"
             params.append(self.user_id)
+        elif filter_mode == "Актуальные": # Fallback for alias
+            query += " AND (статус != 'выполнено' AND (id_сборщика IS NULL OR id_сборщика = %s))"
+            params.append(self.user_id)
+        elif filter_mode == "Мои задачи":
+            query += " AND id_сборщика = %s"
+            params.append(self.user_id)
+        elif filter_mode == "Свободные":
+            query += " AND id_сборщика IS NULL AND статус != 'выполнено'"
         elif filter_mode == "История (Выполнено)":
-            # ИСПРАВЛЕНО: status -> статус
             query += " AND статус = 'выполнено' AND id_сборщика = %s"
             params.append(self.user_id)
-
-        # ИСПРАВЛЕНО: дата_план -> дедлайн (так называется колонка во View)
         query += " ORDER BY дедлайн ASC"
 
         try:
-            tasks = Database.fetch_all(query, params)
-            self.populate_table(tasks)
+            tasks = Database.fetch_all(query, tuple(params))
+            
+            self.table.setRowCount(0)
+            # Re-set headers just in case
+            self.table.setHorizontalHeaderLabels(
+                ["ID", "Заготовка", "Заказ", "План", "Факт", "Дедлайн", "Статус", "Сборщик"]
+            )
+            
+            for i, task in enumerate(tasks):
+                self.table.insertRow(i)
+                
+                # View Columns: тип_задачи, id_задачи, id_заказа, наименование_задачи, ... id_объекта
+                
+                # Colors
+                row_color = None
+                status = task.get("статус")
+                if status == "принято":
+                    row_color = QColor("#E3F2FD")  # Light Blue
+                elif status == "в_работе":
+                    row_color = QColor("#FFF9C4")  # Yellow
+                elif status == "выполнено":
+                    row_color = QColor("#C8E6C9")  # Green
+                elif status == "просрочено":
+                    row_color = QColor("#FFCDD2")  # Red
+
+                # Access Keys safely with fallback
+                t_id = str(task.get("id_объекта", task.get("id_заготовки", "")))
+                t_name = str(task.get("наименование_задачи", task.get("заготовка", "???")))
+                t_order = str(task.get("id_заказа", ""))
+                t_plan = str(task.get("плановое_количество", 0))
+                t_fact = str(task.get("фактическое_количество", 0))
+                t_dead = str(task.get("дедлайн", task.get("дата_план", "")))
+                t_status = str(task.get("статус", ""))
+                
+                assignee_id = task.get("id_сборщика")
+                t_assignee = str(assignee_id) if assignee_id else "—"
+
+                # Items
+                items = [t_id, t_name, t_order, t_plan, t_fact, t_dead, t_status, t_assignee]
+
+                for col, text in enumerate(items):
+                    item = QTableWidgetItem(text)
+                    if row_color:
+                        item.setBackground(row_color)
+                    self.table.setItem(i, col, item)
+
+                # Store user role
+                self.table.item(i, 0).setData(Qt.ItemDataRole.UserRole, task)
+
         except Exception as e:
             print("Ошибка загрузки задач:", e)
-
-    def populate_table(self, tasks):
-        self.table.setRowCount(0)
-        for row_idx, task in enumerate(tasks):
-            self.table.insertRow(row_idx)
-
-            # Сохраняем составной ключ задачи
-            id_заготовки = task["id_заготовки"]
-            id_заказа = task["id_заказа"]
-
-            items = [
-                str(id_заготовки),
-                str(id_заказа),
-                task["заготовка"],
-                str(task["плановое_количество"]),
-                str(task["фактическое_количество"]),
-                str(task["дедлайн"]),
-                task["статус"],
-                # Корректное отображение исполнителя
-                "Свободно" if task["id_сборщика"] is None else ("Я" if task["id_сборщика"] == self.user_id else "Занято"),
-            ]
-
-            # Цвета
-            row_color = None
-            if task["статус"] == "принято":
-                row_color = QColor("#E3F2FD")  # Голубой (свободно)
-            if task["статус"] == "в_работе":
-                row_color = QColor("#FFF9C4")  # Желтый
-            if task["статус"] == "выполнено":
-                row_color = QColor("#C8E6C9")  # Зеленый
-            if task["статус"] == "просрочено":
-                row_color = QColor("#FFCDD2")  # Красный
-
-            for col_idx, text in enumerate(items):
-                item = QTableWidgetItem(text)
-                if row_color:
-                    item.setBackground(row_color)
-                self.table.setItem(row_idx, col_idx, item)
-
-            # Храним данные в 0-й ячейке
-            self.table.item(row_idx, 0).setData(Qt.ItemDataRole.UserRole, task)
-
-    def get_selected_task(self):
-        row = self.table.currentRow()
+            Toast.error(self, "Ошибка загрузки", str(e))
         if row == -1:
             return None
         return self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
@@ -222,37 +219,50 @@ class ProductionTab(QWidget):
     def report_progress(self):
         task = self.get_selected_task()
         if not task:
-            Toast.warning(self, "Внимание", "Выберите задачу")
+            Toast.warning(self, "Внимание", "Выберите задачу для сдачи")
             return
 
-        if task["id_сборщика"] != self.user_id:
-            Toast.error(self, "Ошибка", "Это не ваша задача!")
+        order_id = task["id_заказа"]
+        task_type = task.get("тип_задачи", "заготовка")
+        
+        # ID is stored in 'id_объекта' for new view, or 'id_заготовки' for old fallback
+        object_id = task.get("id_объекта", task.get("id_заготовки"))
+        
+        task_name = task.get("наименование_задачи", "")
+        plan = task["плановое_количество"]
+        fact = task["фактическое_количество"]
+        
+        start_qty = 1
+        max_qty = plan - fact
+        if max_qty < 1:
+            Toast.warning(self, "Внимание", "План по этой задаче выполнен!")
             return
 
-        if task["статус"] != "в_работе":
-            Toast.warning(self, "Ошибка", "Задачу нужно сначала взять в работу!")
-            return
-
-        # Диалог ввода количества
-        remaining = task["плановое_количество"] - task["фактическое_количество"]
         qty, ok = QInputDialog.getInt(
-            self,
-            "Сдача работы",
-            f"Сколько '{task['заготовка']}' вы сделали?",
-            value=1,
-            min=1,
-            max=remaining,
+            self, "Сдать работу", 
+            f"Сколько единиц '{task_name}' вы сделали?", 
+            start_qty, 1, 1000000
         )
-
         if ok:
-            success, msg = Database.execute(
-                "CALL sp_сдать_работу(%s, %s, %s)", (task["id_заготовки"], task["id_заказа"], qty)
-            )
-            if success:
-                Toast.success(self, "Принято", f"Принято {qty} шт.")
+            try:
+                if task_type == 'сборка':
+                    # Call sp_сдать_сборку(id_prod, id_order, qty)
+                    Database.call_procedure(
+                        "sp_сдать_сборку", 
+                        [object_id, order_id, qty]
+                    )
+                else:
+                    # Call sp_сдать_работу(id_comp, id_order, qty)
+                    Database.call_procedure(
+                        "sp_сдать_работу", 
+                        [object_id, order_id, qty]
+                    )
+                    
+                Toast.success(self, "Успешно", "Работа принята, склад обновлен!")
                 self.load_data()
-            else:
-                Toast.error(self, "Ошибка БД", msg)
+            except Exception as e:
+                # Handle "Purchase Needed" errors gracefully (shown as Error toast)
+                Toast.error(self, "Ошибка", str(e))
 
     def print_tasks(self):
         file_path, _ = QFileDialog.getSaveFileName(

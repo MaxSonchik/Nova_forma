@@ -1,4 +1,5 @@
 import qtawesome as qta
+from PyQt6.QtCore import QDate, Qt
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -50,57 +51,81 @@ class ProductionPlanningTab(QWidget):
 
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(8)
+        self.table.setColumnCount(9) # Added Type column
         self.table.setHorizontalHeaderLabels([
-            "ID заготовки", "ID заказа", "Заготовка", "План", "Факт", "Дедлайн", "Статус", "Сборщик"
+            "ID", "Тип", "ID заказа", "Задача", "План", "Факт", "Дедлайн", "Статус", "Сборщик"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
+        # Resize "Rule" for Task Name
+        header.resizeSection(3, 200)
+
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         layout.addWidget(self.table)
-
-        # Buttons
-        btn_layout = QHBoxLayout()
         
-        btn_release = QPushButton("Освободить задачу")
-        btn_release.setIcon(qta.icon("fa5s.user-minus", color="#E74C3C"))
-        btn_release.clicked.connect(self.release_task)
-        
-        btn_assign = QPushButton("Назначить сборщика")
-        btn_assign.setIcon(qta.icon("fa5s.user-plus"))
-        btn_assign.clicked.connect(self.assign_worker)
-        
-        btn_layout.addStretch()
-        btn_layout.addWidget(btn_release)
-        btn_layout.addWidget(btn_assign)
-        layout.addLayout(btn_layout)
+        # ... (rest of setup)
 
     def load_data(self):
+        # Procedure now returns: 
+        # id_заготовки, id_заказа, заготовка, плановое_количество, фактическое_количество, дедлайн, статус, сборщик, тип_задачи, id_объекта
         tasks = Database.fetch_all("SELECT * FROM sp_get_production_plan_full()")
         self.table.setRowCount(0)
+        
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels([
+            "ID", "Тип", "ID заказа", "Задача", "План", "Факт", "Дедлайн", "Статус", "Сборщик"
+        ])
+
         for i, t in enumerate(tasks):
             self.table.insertRow(i)
-            self.table.setItem(i, 0, QTableWidgetItem(str(t["id_заготовки"])))
-            self.table.setItem(i, 1, QTableWidgetItem(str(t["id_заказа"])))
-            self.table.setItem(i, 2, QTableWidgetItem(t["заготовка"]))
-            self.table.setItem(i, 3, QTableWidgetItem(str(t["плановое_количество"])))
-            self.table.setItem(i, 4, QTableWidgetItem(str(t["фактическое_количество"] or 0)))
-            self.table.setItem(i, 5, QTableWidgetItem(str(t["дедлайн"])))
-            self.table.setItem(i, 6, QTableWidgetItem(t["статус"]))
-            self.table.setItem(i, 7, QTableWidgetItem(t["сборщик"]))
+            # 0. ID (Display composite or object id?)
+            # Use id_объекта if available (the view wrapper puts component ID in id_объекта)
+            obj_id = str(t.get("id_объекта", t.get("id_заготовки")))
+            
+            self.table.setItem(i, 0, QTableWidgetItem(obj_id))
+            self.table.setItem(i, 1, QTableWidgetItem(t.get("тип_задачи", "заготовка")))
+            self.table.setItem(i, 2, QTableWidgetItem(str(t["id_заказа"])))
+            self.table.setItem(i, 3, QTableWidgetItem(t["заготовка"]))
+            self.table.setItem(i, 4, QTableWidgetItem(str(t["плановое_количество"])))
+            self.table.setItem(i, 5, QTableWidgetItem(str(t["фактическое_количество"] or 0)))
+            self.table.setItem(i, 6, QTableWidgetItem(str(t["дедлайн"])))
+            self.table.setItem(i, 7, QTableWidgetItem(t["статус"]))
+            self.table.setItem(i, 8, QTableWidgetItem(t["сборщик"]))
+            
+            # Store full data for actions
+            self.table.item(i, 0).setData(Qt.ItemDataRole.UserRole, t)
 
     def get_selected_composite_key(self):
-        """Returns (id_заготовки, id_заказа) or None"""
+        """Returns (id_объекта, id_заказа, тип_задачи) or None"""
         selected = self.table.selectedItems()
         if not selected:
-            return None, None
+            return None, None, None
         row = selected[0].row()
-        id_заготовки = int(self.table.item(row, 0).text())
-        id_заказа = int(self.table.item(row, 1).text())
-        return id_заготовки, id_заказа
+        id_obj = int(self.table.item(row, 0).text())
+        task_type = self.table.item(row, 1).text()
+        id_order = int(self.table.item(row, 2).text())
+        return id_obj, id_order, task_type
+
+    def filter_by_order(self, order_id):
+        """Show only tasks for specific order"""
+        self.load_data()
+        
+        # Simple client-side filter (hiding rows)
+        # Column 2 is "ID заказа" after adding Type column
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 2)  # ID заказа is in column 2
+            if item and item.text() == str(order_id):
+                self.table.setRowHidden(row, False)
+            else:
+                self.table.setRowHidden(row, True)
+        
+        Toast.info(self, "Фильтр", f"Показаны задачи для заказа №{order_id}")
 
     def assign_worker(self):
-        id_заготовки, id_заказа = self.get_selected_composite_key()
+        id_заготовки, id_заказа, _ = self.get_selected_composite_key()
         if not id_заготовки:
             Toast.warning(self, "Внимание", "Выберите задачу")
             return
@@ -110,7 +135,7 @@ class ProductionPlanningTab(QWidget):
             self.load_data()
 
     def release_task(self):
-        id_заготовки, id_заказа = self.get_selected_composite_key()
+        id_заготовки, id_заказа, _ = self.get_selected_composite_key()
         if not id_заготовки:
             Toast.warning(self, "Внимание", "Выберите задачу")
             return
@@ -221,18 +246,28 @@ class AddManualTaskDialog(QDialog):
 
     def save(self):
         order_id = self.spin_order.value()
-        component_id = self.combo_component.currentData()
-        qty = self.spin_qty.value()
-
-        if not component_id:
-            QMessageBox.warning(self, "Ошибка", "Выберите заготовку")
+        comp_idx = self.combo_component.currentIndex()
+        if comp_idx == -1:
             return
-
-        result = Database.call_procedure(
-            "sp_add_manual_component_task", [order_id, component_id, qty, None]
-        )
-        if result.get("status") == "OK":
-            Toast.success(self.parent(), "Успешно", result.get("message"))
-            self.accept()
-        else:
-            Toast.error(self, "Ошибка", result.get("message", "Неизвестная ошибка"))
+        
+        comp_id = self.combo_component.itemData(comp_idx)
+        qty = self.spin_qty.value()
+        
+        # Deadline defaults to tomorrow for manual tasks
+        deadline = QDate.currentDate().addDays(1).toString("yyyy-MM-dd")
+        
+        try:
+            res = Database.call_procedure(
+                'sp_create_manual_production_task',
+                [order_id, comp_id, qty, deadline]
+            )
+            
+            if res.get('status') == 'OK':
+                Toast.success(self.parent(), "Успешно", "Задача добавлена")
+                self.accept()
+            else:
+                # Show error from DB (e.g. Purchase needed)
+                Toast.error(self.parent(), "Ошибка", res.get('message', 'Неизвестная ошибка'))
+                
+        except Exception as e:
+            Toast.error(self.parent(), "Ошибка", str(e))

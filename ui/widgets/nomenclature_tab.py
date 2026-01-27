@@ -54,7 +54,17 @@ class NomenclatureTab(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(["ID", "Артикул", "Наименование", "Тип", "Размеры", "Цена", "На складе"])
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        
+        # Resize Modes
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # Articul
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)          # Name (Stretch this one!)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents) # Type
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Dimensions
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents) # Price
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents) # Stock
+
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.doubleClicked.connect(self.edit_product)
@@ -125,8 +135,8 @@ class NomenclatureTab(QWidget):
             return
 
         row = self.table.selectedItems()[0].row()
-        current_name = self.table.item(row, 1).text()
-        current_price = self.table.item(row, 2).text().replace(" ₽", "").replace(",", "")
+        current_name = self.table.item(row, 2).text()
+        current_price = self.table.item(row, 5).text().replace(" ₽", "").replace(",", "").replace("\xa0", "").strip()
 
         dialog = EditProductDialog(self, product_id, current_name, float(current_price))
         if dialog.exec():

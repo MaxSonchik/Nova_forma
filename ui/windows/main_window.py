@@ -152,23 +152,24 @@ class MainWindow(QMainWindow):
 
         if self.role == "директор":
             self.add_menu_item("Дашборд", "fa5s.chart-line", DashboardTab())
-            self.add_menu_item("Персонал", "fa5s.users", EmployeesTab())
             self.add_menu_item("Номенклатура", "fa5s.boxes", NomenclatureTab())
             self.add_menu_item("Заготовки", "fa5s.puzzle-piece", ComponentsTab())
             self.add_menu_item("Закупки", "fa5s.shopping-cart", PurchasesTab())
             self.add_menu_item("Склад", "fa5s.warehouse", WarehouseTab())
             self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id))
-            self.add_menu_item("Графики", "fa5s.calendar-check", ManagerScheduleTab())
+            self.add_menu_item("План работ", "fa5s.tasks", ProductionPlanningTab())
+            # self.add_menu_item("Производство", "fa5s.hammer", ProductionTab(self.user_id)) # Removed for Director
+            self.add_menu_item("График", "fa5s.calendar-alt", ManagerScheduleTab())
 
         elif self.role == "менеджер":
-            self.add_menu_item("Заказы", "fa5s.clipboard-list", OrdersTab(self.user_id))
+            self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id))
             self.add_menu_item("План работ", "fa5s.tasks", ProductionPlanningTab())
-            self.add_menu_item("Клиенты", "fa5s.address-book", ClientsTab())
-            self.add_menu_item("Склад", "fa5s.boxes", WarehouseTab())
-            self.add_menu_item("Графики", "fa5s.calendar-check", ManagerScheduleTab())
+            self.add_menu_item("Клиенты", "fa5s.users", ClientsTab())
+            self.add_menu_item("Номенклатура", "fa5s.boxes", NomenclatureTab())
+            self.add_menu_item("Склад", "fa5s.warehouse", WarehouseTab())
 
         elif self.role == "сборщик":
-            self.add_menu_item("Мои Задачи", "fa5s.tools", ProductionTab(self.user_id))
+            self.add_menu_item("Производство", "fa5s.hammer", ProductionTab(self.user_id))
             self.add_menu_item("График", "fa5s.calendar-alt", ScheduleTab(self.user_id))
 
         else:
@@ -182,3 +183,18 @@ class MainWindow(QMainWindow):
     def handle_logout(self):
         self.logoutSignal.emit()
         self.close()
+
+    def switch_to_production_plan(self, order_id):
+        """Переключение на вкладку План работ и фильтрация по заказу"""
+        # Find ProductionPlanningTab index
+        for i in range(self.stacked_widget.count()):
+            widget = self.stacked_widget.widget(i)
+            if isinstance(widget, ProductionPlanningTab):
+                self.stacked_widget.setCurrentIndex(i)
+                # Ensure the corresponding menu button is checked
+                btn = self.menu_layout.itemAt(i).widget()
+                if btn: btn.setChecked(True)
+                
+                # Apply filter
+                widget.filter_by_order(order_id)
+                break
