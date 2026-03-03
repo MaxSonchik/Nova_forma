@@ -1,5 +1,5 @@
--- Rewritten sp_search_orders to fetch directly from tables (bypassing view)
--- to ensure maximum robustness against missing data or view definition issues.
+
+
 DROP FUNCTION IF EXISTS sp_search_orders(INTEGER, VARCHAR, VARCHAR, DATE, DATE);
 CREATE OR REPLACE FUNCTION sp_search_orders(
         p_manager_id INTEGER,
@@ -27,7 +27,7 @@ SELECT z.id_заказа,
     COALESCE(z.сумма_заказа, 0)::NUMERIC AS сумма_заказа,
     (
         SELECT COUNT(*)
-        FROM состав_заказа sz
+        FROM СоставЗаказа sz
         WHERE sz.id_заказа = z.id_заказа
     )::BIGINT AS позиций_в_заказе,
     CASE
@@ -39,9 +39,9 @@ SELECT z.id_заказа,
         AND z.статус NOT IN ('выполнено', 'отгружен', 'завершен', 'отменен') THEN 'ПРОСРОЧЕН'
         ELSE 'В норме'
     END::TEXT AS состояние_сроков
-FROM заказы z
-    LEFT JOIN клиенты k ON z.id_клиента = k.id_клиента
-    LEFT JOIN сотрудники s ON z.id_менеджера = s.id_сотрудника
+FROM Заказ z
+    LEFT JOIN Клиент k ON z.id_клиента = k.id_клиента
+    LEFT JOIN Сотрудник s ON z.id_менеджера = s.id_сотрудника
 WHERE (
         p_search_text IS NULL
         OR p_search_text = ''

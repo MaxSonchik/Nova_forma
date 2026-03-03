@@ -12,18 +12,18 @@ def run_test():
     cur = conn.cursor()
 
     print("--- ТЕСТ 1: Добавление заказа Менеджером ---")
-    # 1. Берем первого клиента и сотрудника
-    cur.execute("SELECT id_клиента FROM клиенты LIMIT 1")
+                                           
+    cur.execute("SELECT id_клиента FROM Клиент LIMIT 1")
     client_id = cur.fetchone()[0]
     cur.execute(
-        "SELECT id_сотрудника FROM сотрудники WHERE должность='менеджер' LIMIT 1"
+        "SELECT id_сотрудника FROM Сотрудник WHERE должность='менеджер' LIMIT 1"
     )
     mgr_id = cur.fetchone()[0]
 
-    # 2. Создаем "пустой" заказ
+                               
     cur.execute(
         """
-        INSERT INTO заказы (id_клиента, id_менеджера, дата_готовности) 
+        INSERT INTO Заказ (id_клиента, id_менеджера, дата_готовности) 
         VALUES (%s, %s, CURRENT_DATE + 5) RETURNING id_заказа
     """,
         (client_id, mgr_id),
@@ -31,12 +31,12 @@ def run_test():
     order_id = cur.fetchone()[0]
     print(f"Создан заказ ID: {order_id}")
 
-    # 3. Берем изделие
-    cur.execute("SELECT id_изделия FROM изделия LIMIT 1")
+                      
+    cur.execute("SELECT id_изделия FROM Изделие LIMIT 1")
     prod_id = cur.fetchone()[0]
 
-    # 4. Менеджер добавляет изделие (вызов функции)
-    # Пытаемся добавить 1000 штук (чтобы точно не хватило на складе и сработал триггер производства)
+                                                   
+                                                                                                    
     qty = 1000
     print(f"Менеджер добавляет изделие {prod_id} в количестве {qty} шт...")
 
@@ -48,8 +48,8 @@ def run_test():
 
     print(f"Результат функции: {result_msg}")
 
-    # 5. Проверка Плана
-    cur.execute("SELECT COUNT(*) FROM план_заготовок WHERE id_заказа = %s", (order_id,))
+                       
+    cur.execute("SELECT COUNT(*) FROM ПланЗаготовок WHERE id_заказа = %s", (order_id,))
     count_tasks = cur.fetchone()[0]
     print(f"Записей в плане производства для заказа: {count_tasks}")
 

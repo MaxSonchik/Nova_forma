@@ -1,28 +1,28 @@
--- Extended Sample Data Script v2
--- Creates 100+ records in operational tables for realistic testing
--- Run after schema_migration_v5.sql
+
+
+
 BEGIN;
--- ============================================================================
--- 1. CLEAR EXISTING DATA
--- ============================================================================
+
+
+
 TRUNCATE TABLE логи_операций CASCADE;
-TRUNCATE TABLE план_заготовок CASCADE;
-TRUNCATE TABLE состав_закупки CASCADE;
-TRUNCATE TABLE закупки_материалов CASCADE;
-TRUNCATE TABLE график_работы CASCADE;
-TRUNCATE TABLE состав_изделия CASCADE;
+TRUNCATE TABLE ПланЗаготовок CASCADE;
+TRUNCATE TABLE СоставЗакупки CASCADE;
+TRUNCATE TABLE Закупка CASCADE;
+TRUNCATE TABLE График CASCADE;
+TRUNCATE TABLE СоставИзделия CASCADE;
 TRUNCATE TABLE расход_материалов CASCADE;
-TRUNCATE TABLE состав_заказа CASCADE;
-TRUNCATE TABLE заказы CASCADE;
-TRUNCATE TABLE изделия CASCADE;
-TRUNCATE TABLE заготовки CASCADE;
-TRUNCATE TABLE материалы CASCADE;
-TRUNCATE TABLE клиенты CASCADE;
-TRUNCATE TABLE сотрудники CASCADE;
--- ============================================================================
--- 2. СОТРУДНИКИ (Employees) - 10 records
--- ============================================================================
-INSERT INTO сотрудники (
+TRUNCATE TABLE СоставЗаказа CASCADE;
+TRUNCATE TABLE Заказ CASCADE;
+TRUNCATE TABLE Изделие CASCADE;
+TRUNCATE TABLE Заготовка CASCADE;
+TRUNCATE TABLE Материал CASCADE;
+TRUNCATE TABLE Клиент CASCADE;
+TRUNCATE TABLE Сотрудник CASCADE;
+
+
+
+INSERT INTO Сотрудник (
         фио,
         номер_телефона,
         дата_рождения,
@@ -132,10 +132,10 @@ VALUES (
         'worker6',
         '$2b$12$abc123'
     );
--- ============================================================================
--- 3. КЛИЕНТЫ (Clients) - 30 records
--- ============================================================================
-INSERT INTO клиенты (фио, инн, номер_телефона, адрес)
+
+
+
+INSERT INTO Клиент (фио, инн, номер_телефона, адрес)
 VALUES (
         'Иванов Петр Сергеевич',
         '123456789012',
@@ -316,10 +316,10 @@ VALUES (
         '+74950123456',
         'г. Москва, ул. Финансовая, д. 1'
     );
--- ============================================================================
--- 4. МАТЕРИАЛЫ (Materials) - 25 records
--- ============================================================================
-INSERT INTO материалы (
+
+
+
+INSERT INTO Материал (
         артикул_материала,
         наименование,
         количество_на_складе,
@@ -506,10 +506,10 @@ VALUES (
         50,
         850.00
     );
--- ============================================================================
--- 5. ЗАГОТОВКИ (Components) - 20 records
--- ============================================================================
-INSERT INTO заготовки (
+
+
+
+INSERT INTO Заготовка (
         артикул_заготовки,
         наименование,
         количество_готовых,
@@ -635,10 +635,10 @@ VALUES (
         45,
         'Готовый выдвижной ящик'
     );
--- ============================================================================
--- 6. ИЗДЕЛИЯ (Products) - 15 records (no duplicates)
--- ============================================================================
-INSERT INTO изделия (
+
+
+
+INSERT INTO Изделие (
         артикул_изделия,
         наименование,
         тип,
@@ -750,9 +750,9 @@ VALUES (
         '2400x2200x600',
         75000.00
     );
--- ============================================================================
--- 7. РАСХОД МАТЕРИАЛОВ (Materials per Component) - ~60 records
--- ============================================================================
+
+
+
 INSERT INTO расход_материалов (id_заготовки, id_материала, количество_материала)
 SELECT z.id_заготовки,
     m.id_материала,
@@ -807,101 +807,101 @@ FROM (
             ('ZAG-020', 'MAT-019', 12),
             ('ZAG-020', 'MAT-010', 1)
     ) AS v(арт_заг, арт_мат, qty)
-    JOIN заготовки z ON z.артикул_заготовки = v.арт_заг
-    JOIN материалы m ON m.артикул_материала = v.арт_мат ON CONFLICT (id_заготовки, id_материала) DO NOTHING;
--- ============================================================================
--- 8. СОСТАВ ИЗДЕЛИЯ (Components per Product) - ~50 records
--- ============================================================================
-INSERT INTO состав_изделия (id_изделия, id_заготовки, количество_заготовки)
+    JOIN Заготовка z ON z.артикул_заготовки = v.арт_заг
+    JOIN Материал m ON m.артикул_материала = v.арт_мат ON CONFLICT (id_заготовки, id_материала) DO NOTHING;
+
+
+
+INSERT INTO СоставИзделия (id_изделия, id_заготовки, количество_заготовки)
 SELECT i.id_изделия,
     z.id_заготовки,
     qty
 FROM (
-        VALUES -- Шкаф-купе Классик
+        VALUES 
             ('IZD-001', 'ZAG-001', 2),
             ('IZD-001', 'ZAG-002', 6),
             ('IZD-001', 'ZAG-006', 1),
             ('IZD-001', 'ZAG-012', 1),
             ('IZD-001', 'ZAG-019', 1),
-            -- Стол письменный Офис
+            
             ('IZD-002', 'ZAG-004', 1),
             ('IZD-002', 'ZAG-005', 4),
             ('IZD-002', 'ZAG-007', 2),
             ('IZD-002', 'ZAG-020', 3),
-            -- Стул Комфорт
+            
             ('IZD-003', 'ZAG-008', 1),
             ('IZD-003', 'ZAG-009', 1),
             ('IZD-003', 'ZAG-013', 2),
             ('IZD-003', 'ZAG-014', 1),
-            -- Тумба прикроватная
+            
             ('IZD-004', 'ZAG-002', 2),
             ('IZD-004', 'ZAG-003', 1),
             ('IZD-004', 'ZAG-006', 1),
             ('IZD-004', 'ZAG-012', 1),
-            -- Комод на 4 ящика
+            
             ('IZD-005', 'ZAG-001', 2),
             ('IZD-005', 'ZAG-010', 4),
             ('IZD-005', 'ZAG-011', 4),
             ('IZD-005', 'ZAG-020', 4),
             ('IZD-005', 'ZAG-006', 1),
-            -- Стол обеденный раздвижной
+            
             ('IZD-006', 'ZAG-015', 2),
             ('IZD-006', 'ZAG-005', 4),
             ('IZD-006', 'ZAG-007', 4),
-            -- Полка навесная
+            
             ('IZD-007', 'ZAG-016', 3),
             ('IZD-007', 'ZAG-006', 1),
-            -- Стеллаж офисный
+            
             ('IZD-008', 'ZAG-001', 2),
             ('IZD-008', 'ZAG-002', 8),
             ('IZD-008', 'ZAG-006', 1),
             ('IZD-008', 'ZAG-012', 1),
-            -- Шкаф-купе Лидер
+            
             ('IZD-009', 'ZAG-001', 3),
             ('IZD-009', 'ZAG-002', 10),
             ('IZD-009', 'ZAG-017', 3),
             ('IZD-009', 'ZAG-018', 2),
             ('IZD-009', 'ZAG-019', 2),
             ('IZD-009', 'ZAG-006', 1),
-            -- Комод 4 ящика
+            
             ('IZD-010', 'ZAG-001', 2),
             ('IZD-010', 'ZAG-010', 4),
             ('IZD-010', 'ZAG-020', 4),
             ('IZD-010', 'ZAG-006', 1),
             ('IZD-010', 'ZAG-012', 1),
-            -- Стол письменный Ученик
+            
             ('IZD-011', 'ZAG-004', 1),
             ('IZD-011', 'ZAG-005', 4),
             ('IZD-011', 'ZAG-007', 2),
             ('IZD-011', 'ZAG-020', 2),
-            -- Кровать двуспальная
+            
             ('IZD-012', 'ZAG-001', 2),
             ('IZD-012', 'ZAG-008', 1),
             ('IZD-012', 'ZAG-002', 4),
-            -- Тумба ТВ
+            
             ('IZD-013', 'ZAG-001', 2),
             ('IZD-013', 'ZAG-002', 3),
             ('IZD-013', 'ZAG-003', 2),
             ('IZD-013', 'ZAG-006', 1),
-            -- Гардеробная система
+            
             ('IZD-014', 'ZAG-001', 6),
             ('IZD-014', 'ZAG-002', 15),
             ('IZD-014', 'ZAG-017', 4),
             ('IZD-014', 'ZAG-018', 4),
             ('IZD-014', 'ZAG-019', 3),
             ('IZD-014', 'ZAG-020', 8),
-            -- Кухонный гарнитур Эконом
+            
             ('IZD-015', 'ZAG-001', 4),
             ('IZD-015', 'ZAG-002', 10),
             ('IZD-015', 'ZAG-003', 6),
             ('IZD-015', 'ZAG-016', 4),
             ('IZD-015', 'ZAG-020', 6)
     ) AS v(арт_изд, арт_заг, qty)
-    JOIN изделия i ON i.артикул_изделия = v.арт_изд
-    JOIN заготовки z ON z.артикул_заготовки = v.арт_заг ON CONFLICT (id_изделия, id_заготовки) DO NOTHING;
--- ============================================================================
--- 9. ЗАКАЗЫ (Orders) - 100+ records
--- ============================================================================
+    JOIN Изделие i ON i.артикул_изделия = v.арт_изд
+    JOIN Заготовка z ON z.артикул_заготовки = v.арт_заг ON CONFLICT (id_изделия, id_заготовки) DO NOTHING;
+
+
+
 DO $$
 DECLARE i INTEGER;
 client_id INTEGER;
@@ -911,31 +911,31 @@ ready_date DATE;
 status_val VARCHAR;
 total NUMERIC;
 statuses VARCHAR [] := ARRAY ['принят', 'в_работе', 'в_обработке', 'выполнен', 'отгружен'];
-BEGIN FOR i IN 1..120 LOOP -- Random client
+BEGIN FOR i IN 1..120 LOOP 
 SELECT id_клиента INTO client_id
-FROM клиенты
+FROM Клиент
 ORDER BY random()
 LIMIT 1;
--- Random manager
+
 SELECT id_сотрудника INTO manager_id
-FROM сотрудники
+FROM Сотрудник
 WHERE должность = 'менеджер'
 ORDER BY random()
 LIMIT 1;
--- Random dates
+
 order_date := CURRENT_DATE - (random() * 60)::INTEGER;
 ready_date := order_date + 7 + (random() * 14)::INTEGER;
--- Random status based on date
+
 IF ready_date < CURRENT_DATE THEN status_val := statuses [3 + (random() * 2)::INTEGER];
--- выполнен or отгружен
+
 ELSIF order_date < CURRENT_DATE - 7 THEN status_val := statuses [2 + (random() * 2)::INTEGER];
--- в_работе or в_обработке
+
 ELSE status_val := statuses [1 + (random() * 2)::INTEGER];
--- принят or в_работе
+
 END IF;
--- Random total
+
 total := 10000 + (random() * 100000)::INTEGER;
-INSERT INTO заказы (
+INSERT INTO Заказ (
         id_клиента,
         id_менеджера,
         дата_заказа,
@@ -955,9 +955,9 @@ VALUES (
     );
 END LOOP;
 END $$;
--- ============================================================================
--- 10. СОСТАВ ЗАКАЗА (Order Items) - Multiple items per order
--- ============================================================================
+
+
+
 DO $$
 DECLARE order_rec RECORD;
 product_id INTEGER;
@@ -965,14 +965,14 @@ items_count INTEGER;
 i INTEGER;
 BEGIN FOR order_rec IN
 SELECT id_заказа
-FROM заказы LOOP -- 1-4 items per order
+FROM Заказ LOOP 
     items_count := 1 + (random() * 3)::INTEGER;
 FOR i IN 1..items_count LOOP
 SELECT id_изделия INTO product_id
-FROM изделия
+FROM Изделие
 ORDER BY random()
 LIMIT 1;
-INSERT INTO состав_заказа (
+INSERT INTO СоставЗаказа (
         id_заказа,
         id_изделия,
         цена_фиксированная,
@@ -982,27 +982,27 @@ SELECT order_rec.id_заказа,
     product_id,
     стоимость,
     1 + (random() * 2)::INTEGER
-FROM изделия
+FROM Изделие
 WHERE id_изделия = product_id ON CONFLICT (id_заказа, id_изделия) DO
 UPDATE
-SET количество_изделий = состав_заказа.количество_изделий + 1;
+SET количество_изделий = СоставЗаказа.количество_изделий + 1;
 END LOOP;
 END LOOP;
 END $$;
--- Update order totals
-UPDATE заказы
+
+UPDATE Заказ
 SET сумма_заказа = (
         SELECT COALESCE(
                 SUM(sz.цена_фиксированная * sz.количество_изделий),
                 0
             )
-        FROM состав_заказа sz
-        WHERE sz.id_заказа = заказы.id_заказа
+        FROM СоставЗаказа sz
+        WHERE sz.id_заказа = Заказ.id_заказа
     );
--- ============================================================================
--- 11. ПЛАН ЗАГОТОВОК (Production Plan) - Auto-generated from orders
--- ============================================================================
-INSERT INTO план_заготовок (
+
+
+
+INSERT INTO ПланЗаготовок (
         id_заготовки,
         id_заказа,
         id_сотрудника,
@@ -1014,7 +1014,7 @@ SELECT DISTINCT ON (si.id_заготовки, sz.id_заказа) si.id_заго
     sz.id_заказа,
     (
         SELECT id_сотрудника
-        FROM сотрудники
+        FROM Сотрудник
         WHERE должность = 'сборщик'
         ORDER BY random()
         LIMIT 1
@@ -1024,18 +1024,18 @@ SELECT DISTINCT ON (si.id_заготовки, sz.id_заказа) si.id_заго
         WHEN o.статус = 'в_работе' THEN 'в_работе'
         ELSE 'принято'
     END
-FROM состав_заказа sz
-    JOIN состав_изделия si ON sz.id_изделия = si.id_изделия
-    JOIN заказы o ON sz.id_заказа = o.id_заказа
+FROM СоставЗаказа sz
+    JOIN СоставИзделия si ON sz.id_изделия = si.id_изделия
+    JOIN Заказ o ON sz.id_заказа = o.id_заказа
 WHERE o.статус NOT IN ('отменен')
 GROUP BY si.id_заготовки,
     sz.id_заказа,
     o.дата_готовности,
     o.статус ON CONFLICT (id_заготовки, id_заказа) DO NOTHING;
--- ============================================================================
--- 12. ЗАКУПКИ МАТЕРИАЛОВ (Purchases) - 20 records
--- ============================================================================
-INSERT INTO закупки_материалов (дата_закупки, поставщик, статус)
+
+
+
+INSERT INTO Закупка (дата_закупки, поставщик, статус)
 VALUES (CURRENT_DATE - 30, 'ООО ЛесТорг', 'выполнено'),
     (
         CURRENT_DATE - 28,
@@ -1116,9 +1116,9 @@ VALUES (CURRENT_DATE - 30, 'ООО ЛесТорг', 'выполнено'),
         'ИП Фурнитура Плюс',
         'ожидает_подтверждения'
     );
--- ============================================================================
--- 13. СОСТАВ ЗАКУПКИ (Purchase Items)
--- ============================================================================
+
+
+
 DO $$
 DECLARE purchase_rec RECORD;
 mat_id INTEGER;
@@ -1126,14 +1126,14 @@ items_count INTEGER;
 i INTEGER;
 BEGIN FOR purchase_rec IN
 SELECT id_закупки
-FROM закупки_материалов LOOP -- 2-6 materials per purchase
+FROM Закупка LOOP 
     items_count := 2 + (random() * 4)::INTEGER;
 FOR i IN 1..items_count LOOP
 SELECT id_материала INTO mat_id
-FROM материалы
+FROM Материал
 ORDER BY random()
 LIMIT 1;
-INSERT INTO состав_закупки (
+INSERT INTO СоставЗакупки (
         id_закупки,
         id_материала,
         количество,
@@ -1143,60 +1143,60 @@ SELECT purchase_rec.id_закупки,
     mat_id,
     10 + (random() * 90)::INTEGER,
     цена_за_единицу * 0.8
-FROM материалы
+FROM Материал
 WHERE id_материала = mat_id ON CONFLICT (id_закупки, id_материала) DO NOTHING;
 END LOOP;
 END LOOP;
 END $$;
 COMMIT;
--- ============================================================================
--- VERIFICATION
--- ============================================================================
-SELECT 'сотрудники' as table_name,
+
+
+
+SELECT 'Сотрудник' as table_name,
     COUNT(*) as cnt
-FROM сотрудники
+FROM Сотрудник
 UNION ALL
-SELECT 'клиенты',
+SELECT 'Клиент',
     COUNT(*)
-FROM клиенты
+FROM Клиент
 UNION ALL
-SELECT 'материалы',
+SELECT 'Материал',
     COUNT(*)
-FROM материалы
+FROM Материал
 UNION ALL
-SELECT 'заготовки',
+SELECT 'Заготовка',
     COUNT(*)
-FROM заготовки
+FROM Заготовка
 UNION ALL
-SELECT 'изделия',
+SELECT 'Изделие',
     COUNT(*)
-FROM изделия
+FROM Изделие
 UNION ALL
 SELECT 'расход_материалов',
     COUNT(*)
 FROM расход_материалов
 UNION ALL
-SELECT 'состав_изделия',
+SELECT 'СоставИзделия',
     COUNT(*)
-FROM состав_изделия
+FROM СоставИзделия
 UNION ALL
-SELECT 'заказы',
+SELECT 'Заказ',
     COUNT(*)
-FROM заказы
+FROM Заказ
 UNION ALL
-SELECT 'состав_заказа',
+SELECT 'СоставЗаказа',
     COUNT(*)
-FROM состав_заказа
+FROM СоставЗаказа
 UNION ALL
-SELECT 'план_заготовок',
+SELECT 'ПланЗаготовок',
     COUNT(*)
-FROM план_заготовок
+FROM ПланЗаготовок
 UNION ALL
-SELECT 'закупки_материалов',
+SELECT 'Закупка',
     COUNT(*)
-FROM закупки_материалов
+FROM Закупка
 UNION ALL
-SELECT 'состав_закупки',
+SELECT 'СоставЗакупки',
     COUNT(*)
-FROM состав_закупки
+FROM СоставЗакупки
 ORDER BY table_name;

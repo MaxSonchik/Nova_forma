@@ -16,7 +16,7 @@ from ui.widgets.toast import Toast
 class AddClientDialog(QDialog):
     def __init__(self, parent=None, client_data=None):
         super().__init__(parent)
-        self.client_data = client_data  # Если None -> Создание, иначе -> Редактирование
+        self.client_data = client_data                                                  
 
         mode_text = "Редактирование клиента" if client_data else "Новый клиент"
         self.setWindowTitle(mode_text)
@@ -30,7 +30,7 @@ class AddClientDialog(QDialog):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Форма ввода
+                     
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
 
@@ -55,7 +55,7 @@ class AddClientDialog(QDialog):
         layout.addLayout(form_layout)
         layout.addStretch()
 
-        # Кнопки
+                
         btn_layout = QHBoxLayout()
 
         btn_cancel = QPushButton("Отмена")
@@ -86,7 +86,7 @@ class AddClientDialog(QDialog):
         inn = self.input_inn.text().strip() or None
         address = self.input_address.toPlainText().strip()
 
-        # 1. Валидация UI
+                         
         if not fio or not phone:
             Toast.warning(self, "Ошибка", "ФИО и Телефон обязательны!")
             return
@@ -94,18 +94,18 @@ class AddClientDialog(QDialog):
         try:
             client_id = self.client_data["id_клиента"] if self.client_data else None
             
-            # Вызываем процедуру сохранения (Create/Update)
+                                                           
             res = Database.call_procedure(
                 'sp_save_client', 
                 [client_id, fio, phone, inn, address]
             )
 
             if res.get('status') == 'OK':
-                # Успех
+                       
                 Toast.success(self.parent(), "Успешно", res.get('message'))
                 self.accept()
             else:
-                # Ошибка
+                        
                 Toast.error(self, "Ошибка сохранения", res.get('message'))
 
         except Exception as e:

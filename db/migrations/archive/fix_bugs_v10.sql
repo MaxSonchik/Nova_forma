@@ -1,8 +1,8 @@
--- Comprehensive Bug Fixes v10
--- 1. FIX: Missing column in 'состав_изделия' causing order creation failure
-ALTER TABLE состав_изделия
+
+
+ALTER TABLE СоставИзделия
 ADD COLUMN IF NOT EXISTS количество_заготовок INTEGER DEFAULT 1 CHECK (количество_заготовок > 0);
--- 2. FIX: sp_hire_employee - Add validation for Age, Phone, Name
+
 DROP FUNCTION IF EXISTS sp_hire_employee(
     VARCHAR,
     VARCHAR,
@@ -25,12 +25,12 @@ CREATE OR REPLACE FUNCTION sp_hire_employee(
         p_fio VARCHAR,
         p_phone VARCHAR,
         p_birth_date DATE,
-        -- Expecting DATE
+        
         p_role VARCHAR,
         p_salary INTEGER,
         p_login VARCHAR,
         p_password_raw VARCHAR
-    ) RETURNS TABLE (status VARCHAR, message VARCHAR) LANGUAGE plpgsql AS $$ BEGIN -- Validation
+    ) RETURNS TABLE (status VARCHAR, message VARCHAR) LANGUAGE plpgsql AS $$ BEGIN 
     IF LENGTH(p_fio) < 5 THEN status := 'ERROR';
 message := 'ФИО слишком короткое';
 RETURN NEXT;
@@ -46,8 +46,8 @@ message := 'Сотрудник должен быть совершеннолет�
 RETURN NEXT;
 RETURN;
 END IF;
--- Insert
-INSERT INTO сотрудники (
+
+INSERT INTO Сотрудник (
         фио,
         номер_телефона,
         дата_рождения,
@@ -77,7 +77,7 @@ message := 'Ошибка: ' || SQLERRM;
 RETURN NEXT;
 END;
 $$;
--- 3. FIX: sp_update_order_status - Block cancelling completed orders
+
 CREATE OR REPLACE FUNCTION sp_update_order_status(
         p_order_id INTEGER,
         p_new_status VARCHAR
@@ -85,14 +85,14 @@ CREATE OR REPLACE FUNCTION sp_update_order_status(
 DECLARE v_current_status VARCHAR;
 BEGIN
 SELECT статус INTO v_current_status
-FROM заказы
+FROM Заказ
 WHERE id_заказа = p_order_id;
 IF NOT FOUND THEN status := 'ERROR';
 message := 'Заказ не найден';
 RETURN NEXT;
 RETURN;
 END IF;
--- Transitions
+
 IF p_new_status = 'в_работе'
 AND v_current_status != 'принят' THEN status := 'ERROR';
 message := 'Нельзя перевести в работу. Текущий статус: ' || v_current_status;
@@ -111,14 +111,14 @@ message := 'Нельзя отгрузить. Заказ не готов. Тек�
 RETURN NEXT;
 RETURN;
 END IF;
--- NEW: BLOCK cancellation if completed/shipped
+
 IF p_new_status = 'отменен'
 AND v_current_status IN ('выполнен', 'отгружен', 'завершен') THEN status := 'ERROR';
 message := 'Нельзя отменить уже выполненный или отгруженный заказ!';
 RETURN NEXT;
 RETURN;
 END IF;
-UPDATE заказы
+UPDATE Заказ
 SET статус = p_new_status
 WHERE id_заказа = p_order_id;
 status := 'OK';
@@ -130,7 +130,7 @@ message := 'Ошибка: ' || SQLERRM;
 RETURN NEXT;
 END;
 $$;
--- 4. FIX: sp_сдать_работу - Deduct materials from stock
+
 CREATE OR REPLACE PROCEDURE sp_сдать_работу(
         p_id_заготовки INTEGER,
         p_id_заказа INTEGER,
@@ -145,7 +145,7 @@ SELECT статус,
     фактическое_количество INTO v_status,
     v_planned,
     v_actual
-FROM план_заготовок
+FROM ПланЗаготовок
 WHERE id_заготовки = p_id_заготовки
     AND id_заказа = p_id_заказа;
 IF NOT FOUND THEN RAISE EXCEPTION 'Задача не найдена';
@@ -154,30 +154,30 @@ IF v_status = 'выполнено' THEN RAISE EXCEPTION 'Задача уже в�
 END IF;
 IF v_status = 'отменено' THEN RAISE EXCEPTION 'Задача отменена';
 END IF;
--- Update plan
-UPDATE план_заготовок
+
+UPDATE ПланЗаготовок
 SET фактическое_количество = фактическое_количество + p_количество,
     дата_факт = CURRENT_DATE
 WHERE id_заготовки = p_id_заготовки
     AND id_заказа = p_id_заказа;
--- Update zagotovki stock
-UPDATE заготовки
+
+UPDATE Заготовка
 SET количество_готовых = количество_готовых + p_количество
 WHERE id_заготовки = p_id_заготовки;
--- DEDUCT MATERIALS (New Logic)
--- Try to use состав_заготовки primarily, fallback handled by design if empty? 
--- Assuming состав_заготовки is populated now.
-UPDATE материалы m
+
+
+
+UPDATE Материал m
 SET количество_на_складе = GREATEST(
         0,
         количество_на_складе - (sz.количество_материала * p_количество)
     )
-FROM состав_заготовки sz
+FROM СоставЗаготовки sz
 WHERE sz.id_заготовки = p_id_заготовки
     AND m.id_материала = sz.id_материала;
--- Check completion
+
 IF (v_actual + p_количество) >= v_planned THEN
-UPDATE план_заготовок
+UPDATE ПланЗаготовок
 SET статус = 'выполнено'
 WHERE id_заготовки = p_id_заготовки
     AND id_заказа = p_id_заказа;

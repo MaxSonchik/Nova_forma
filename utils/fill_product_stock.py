@@ -14,15 +14,15 @@ def fill_stock():
         conn = psycopg2.connect(config.DATABASE_URL)
         cur = conn.cursor()
 
-        # Получаем все ID изделий
-        cur.execute("SELECT id_изделия FROM изделия")
+                                 
+        cur.execute("SELECT id_изделия FROM Изделие")
         products = cur.fetchall()
 
         for (p_id,) in products:
-            # Делаем малое количество (0-5), чтобы легко было вызвать нехватку на складе
+                                                                                        
             qty = random.randint(0, 5)
             cur.execute(
-                "UPDATE изделия SET количество_на_складе = %s WHERE id_изделия = %s",
+                "UPDATE Изделие SET количество_на_складе = %s WHERE id_изделия = %s",
                 (qty, p_id),
             )
 

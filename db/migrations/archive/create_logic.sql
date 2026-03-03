@@ -1,15 +1,15 @@
-ALTER TABLE изделия ADD COLUMN IF NOT EXISTS количество_на_складе INTEGER DEFAULT 0 CHECK (количество_на_складе >= 0);
+ALTER TABLE Изделие ADD COLUMN IF NOT EXISTS количество_на_складе INTEGER DEFAULT 0 CHECK (количество_на_складе >= 0);
 
 
 CREATE OR REPLACE VIEW v_склад_общий AS
 SELECT 'Материал' as тип, артикул_материала as артикул, наименование, количество_на_складе as количество, единица_измерения
-FROM материалы
+FROM Материал
 UNION ALL
 SELECT 'Заготовка', артикул_заготовки, наименование, количество_готовых, 'шт'
-FROM заготовки
+FROM Заготовка
 UNION ALL
 SELECT 'Изделие', артикул_изделия, наименование, количество_на_складе, 'шт'
-FROM изделия;
+FROM Изделие;
 
 
 CREATE OR REPLACE VIEW v_заказы_менеджер AS
@@ -21,16 +21,16 @@ SELECT
     z.дата_готовности,
     z.статус,
     z.сумма_заказа,
-    (SELECT COUNT(*) FROM состав_заказа sz WHERE sz.id_заказа = z.id_заказа) as позиций_в_заказе,
+    (SELECT COUNT(*) FROM СоставЗаказа sz WHERE sz.id_заказа = z.id_заказа) as позиций_в_заказе,
     CASE 
         WHEN z.статус = 'выполнен' THEN 'Готов к отгрузке'
         WHEN z.статус = 'отменен' THEN 'Отмена'
         WHEN z.дата_готовности < CURRENT_DATE AND z.статус != 'выполнен' THEN 'ПРОСРОЧЕН'
         ELSE 'В норме'
     END as состояние_сроков
-FROM заказы z
-JOIN клиенты k ON z.id_клиента = k.id_клиента
-LEFT JOIN сотрудники s ON z.id_менеджера = s.id_сотрудника;
+FROM Заказ z
+JOIN Клиент k ON z.id_клиента = k.id_клиента
+LEFT JOIN Сотрудник s ON z.id_менеджера = s.id_сотрудника;
 
 
 CREATE OR REPLACE VIEW v_задачи_сборщика AS
@@ -42,21 +42,21 @@ SELECT
     pz.дата_план as дедлайн,
     pz.статус,
     pz.id_сборщика
-FROM план_заготовок pz
-JOIN заготовки z ON pz.id_заготовки = z.id_заготовки;
+FROM ПланЗаготовок pz
+JOIN Заготовка z ON pz.id_заготовки = z.id_заготовки;
 
 
 CREATE OR REPLACE VIEW v_отчет_директора AS
 SELECT 
-    'Выручка (заказы)' as показатель, 
+    'Выручка (Заказ)' as показатель, 
     COALESCE(SUM(сумма_заказа), 0) as сумма 
-FROM заказы WHERE статус = 'выполнен'
+FROM Заказ WHERE статус = 'выполнен'
 UNION ALL
 SELECT 
     'Расходы (закупки)', 
     COALESCE(SUM(sz.количество * sz.цена_закупки), 0) 
-FROM состав_закупки sz 
-JOIN закупки_материалов zm ON sz.id_закупки = zm.id_закупки 
+FROM СоставЗакупки sz 
+JOIN Закупка zm ON sz.id_закупки = zm.id_закупки 
 WHERE zm.статус = 'выполнено';
 
 
@@ -74,33 +74,33 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_check_age ON сотрудники;
+DROP TRIGGER IF EXISTS trg_check_age ON Сотрудник;
 CREATE TRIGGER trg_check_age
-BEFORE INSERT OR UPDATE ON сотрудники
+BEFORE INSERT OR UPDATE ON Сотрудник
 FOR EACH ROW EXECUTE FUNCTION trg_check_age_func();
 
 
 CREATE OR REPLACE FUNCTION trg_update_order_sum_func() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'DELETE') THEN
-        UPDATE заказы SET сумма_заказа = (
+        UPDATE Заказ SET сумма_заказа = (
             SELECT COALESCE(SUM(cantidad_izd * price_fix), 0)
-            FROM (SELECT количество_изделий as cantidad_izd, цена_фиксированная as price_fix FROM состав_заказа WHERE id_заказа = OLD.id_заказа) as sub
+            FROM (SELECT количество_изделий as cantidad_izd, цена_фиксированная as price_fix FROM СоставЗаказа WHERE id_заказа = OLD.id_заказа) as sub
         ) WHERE id_заказа = OLD.id_заказа;
         RETURN OLD;
     ELSE
-        UPDATE заказы SET сумма_заказа = (
+        UPDATE Заказ SET сумма_заказа = (
             SELECT COALESCE(SUM(количество_изделий * цена_фиксированная), 0)
-            FROM состав_заказа WHERE id_заказа = NEW.id_заказа
+            FROM СоставЗаказа WHERE id_заказа = NEW.id_заказа
         ) WHERE id_заказа = NEW.id_заказа;
         RETURN NEW;
     END IF;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_calc_sum ON состав_заказа;
+DROP TRIGGER IF EXISTS trg_calc_sum ON СоставЗаказа;
 CREATE TRIGGER trg_calc_sum
-AFTER INSERT OR UPDATE OR DELETE ON состав_заказа
+AFTER INSERT OR UPDATE OR DELETE ON СоставЗаказа
 FOR EACH ROW EXECUTE FUNCTION trg_update_order_sum_func();
 
 
@@ -111,19 +111,19 @@ DECLARE
     rec RECORD;
     curr_status VARCHAR;
 BEGIN
-    SELECT статус INTO curr_status FROM закупки_материалов WHERE id_закупки = p_id_закупки;
+    SELECT статус INTO curr_status FROM Закупка WHERE id_закупки = p_id_закупки;
     
     IF curr_status = 'выполнено' THEN
         RAISE EXCEPTION 'Закупка уже выполнена!';
     END IF;
 
 
-    UPDATE закупки_материалов SET статус = 'выполнено' WHERE id_закупки = p_id_закупки;
+    UPDATE Закупка SET статус = 'выполнено' WHERE id_закупки = p_id_закупки;
 
 
-    FOR rec IN SELECT id_материала, количество FROM состав_закупки WHERE id_закупки = p_id_закупки
+    FOR rec IN SELECT id_материала, количество FROM СоставЗакупки WHERE id_закупки = p_id_закупки
     LOOP
-        UPDATE материалы 
+        UPDATE Материал 
         SET количество_на_складе = количество_на_складе + rec.количество
         WHERE id_материала = rec.id_материала;
     END LOOP;
@@ -134,7 +134,7 @@ $$;
 CREATE OR REPLACE PROCEDURE sp_подтвердить_отгрузку(p_id_заказа INTEGER)
 LANGUAGE plpgsql AS $$
 BEGIN
-    UPDATE заказы SET статус = 'выполнен' WHERE id_заказа = p_id_заказа;
+    UPDATE Заказ SET статус = 'выполнен' WHERE id_заказа = p_id_заказа;
 END;
 $$;
 
@@ -149,7 +149,7 @@ DECLARE
 BEGIN
 
     SELECT id_заготовки, плановое_количество, статус INTO v_id_заготовки, v_plan_qty, v_status
-    FROM план_заготовок WHERE id_плана = p_id_плана;
+    FROM ПланЗаготовок WHERE id_плана = p_id_плана;
 
     IF v_status != 'принято' THEN
         RAISE EXCEPTION 'Задача уже в работе или выполнена/отменена';
@@ -158,7 +158,7 @@ BEGIN
 
     FOR rec IN SELECT id_материала, количество_материала FROM расход_материалов WHERE id_заготовки = v_id_заготовки
     LOOP
-        IF (SELECT количество_на_складе FROM материалы WHERE id_материала = rec.id_материала) < (rec.количество_материала * v_plan_qty) THEN
+        IF (SELECT количество_на_складе FROM Материал WHERE id_материала = rec.id_материала) < (rec.количество_материала * v_plan_qty) THEN
             RAISE EXCEPTION 'Недостаточно материала ID % на складе!', rec.id_материала;
         END IF;
     END LOOP;
@@ -166,12 +166,12 @@ BEGIN
 
     FOR rec IN SELECT id_материала, количество_материала FROM расход_материалов WHERE id_заготовки = v_id_заготовки
     LOOP
-        UPDATE материалы 
+        UPDATE Материал 
         SET количество_на_складе = количество_на_складе - (rec.количество_материала * v_plan_qty)
         WHERE id_материала = rec.id_материала;
     END LOOP;
 
-    UPDATE план_заготовок 
+    UPDATE ПланЗаготовок 
     SET статус = 'в_работе', id_сборщика = p_id_сборщика 
     WHERE id_плана = p_id_плана;
 END;
@@ -192,34 +192,34 @@ DECLARE
 BEGIN
 
     SELECT стоимость, количество_на_складе INTO v_price, v_stock 
-    FROM изделия WHERE id_изделия = p_id_изделия;
+    FROM Изделие WHERE id_изделия = p_id_изделия;
     
 
-    INSERT INTO состав_заказа (id_заказа, id_изделия, количество_изделий, цена_фиксированная)
+    INSERT INTO СоставЗаказа (id_заказа, id_изделия, количество_изделий, цена_фиксированная)
     VALUES (p_id_заказа, p_id_изделия, p_количество, v_price);
 
 ]
     IF v_stock >= p_количество THEN
         
-        UPDATE изделия SET количество_на_складе = количество_на_складе - p_количество 
+        UPDATE Изделие SET количество_на_складе = количество_на_складе - p_количество 
         WHERE id_изделия = p_id_изделия;
         RETURN 'OK: Изделия зарезервированы со склада.';
     ELSE
         v_missing := p_количество - v_stock;
         
         IF v_stock > 0 THEN
-            UPDATE изделия SET количество_на_складе = 0 WHERE id_изделия = p_id_изделия;
+            UPDATE Изделие SET количество_на_складе = 0 WHERE id_изделия = p_id_изделия;
         END IF;
 
         FOR rec IN SELECT id_заготовки, количество_заготовок 
-                   FROM состав_изделия WHERE id_изделия = p_id_изделия
+                   FROM СоставИзделия WHERE id_изделия = p_id_изделия
         LOOP
-            INSERT INTO план_заготовок (id_заказа, id_заготовки, плановое_количество, дата_план, статус)
+            INSERT INTO ПланЗаготовок (id_заказа, id_заготовки, плановое_количество, дата_план, статус)
             VALUES (
                 p_id_заказа, 
                 rec.id_заготовки, 
                 rec.количество_заготовок * v_missing, 
-                (SELECT дата_готовности FROM заказы WHERE id_заказа = p_id_заказа) - INTERVAL '1 day',
+                (SELECT дата_готовности FROM Заказ WHERE id_заказа = p_id_заказа) - INTERVAL '1 day',
                 'принято'
             );
         END LOOP;

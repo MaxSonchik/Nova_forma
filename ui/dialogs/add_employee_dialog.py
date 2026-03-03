@@ -32,7 +32,7 @@ class AddEmployeeDialog(QDialog):
 
         self.inp_birth = QDateEdit()
         self.inp_birth.setCalendarPopup(True)
-        # Ставим дату, чтобы было 18 лет назад (подсказка)
+                                                          
         self.inp_birth.setDate(QDate.currentDate().addYears(-19))
 
         self.combo_role = QComboBox()
@@ -45,7 +45,7 @@ class AddEmployeeDialog(QDialog):
 
         self.inp_login = QLineEdit()
         self.inp_pass = QLineEdit()
-        self.inp_pass.setPlaceholderText("123")  # По умолчанию
+        self.inp_pass.setPlaceholderText("123")                
 
         form.addRow("ФИО:", self.inp_fio)
         form.addRow("Телефон:", self.inp_phone)
@@ -71,7 +71,7 @@ class AddEmployeeDialog(QDialog):
         login = self.inp_login.text()
         raw_pass = self.inp_pass.text() or "123"
 
-        # Пароль теперь хешируется внутри БД (pgcrypto)
+                                                       
         try:
             res = Database.call_procedure(
                 'sp_hire_employee',
@@ -82,7 +82,7 @@ class AddEmployeeDialog(QDialog):
                 Toast.success(self.parent(), "Успешно", f"Сотрудник {fio} нанят!")
                 self.accept()
             else:
-                # Сообщения об ошибках приходят из БД (возраст, уникальность и т.д.)
+                                                                                    
                 Toast.error(self, "Ошибка", res.get('message'))
 
         except Exception as e:

@@ -25,7 +25,7 @@ class EmployeesTab(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Кнопки
+                
         top = QHBoxLayout()
         btn_add = QPushButton("Нанять сотрудника")
         btn_add.setObjectName("PrimaryButton")
@@ -41,7 +41,7 @@ class EmployeesTab(QWidget):
         top.addStretch()
         layout.addLayout(top)
 
-        # Таблица
+                 
         self.table = QTableWidget()
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(
@@ -56,7 +56,8 @@ class EmployeesTab(QWidget):
 
     def load_data(self):
         self.table.setRowCount(0)
-        query = "SELECT * FROM сотрудники ORDER BY дата_увольнения NULLS FIRST, фио"
+                              
+        query = "SELECT * FROM sp_get_employees()"
         emps = Database.fetch_all(query)
 
         for i, e in enumerate(emps):
@@ -66,7 +67,7 @@ class EmployeesTab(QWidget):
             color = None
             if e["дата_увольнения"]:
                 status = "Уволен"
-                color = QColor("#FFCDD2")  # Красный
+                color = QColor("#FFCDD2")           
 
             items = [
                 str(e["id_сотрудника"]),
@@ -108,12 +109,12 @@ class EmployeesTab(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            # Увольнение - это просто установка даты увольнения (soft delete)
+                                                                             
             Database.execute(
-                "UPDATE сотрудники SET дата_увольнения = CURRENT_DATE WHERE id_сотрудника = %s",
+                "UPDATE Сотрудник SET дата_увольнения = CURRENT_DATE WHERE id_сотрудника = %s",
                 (emp_id,),
             )
-            # Также деактивируем доступ? У нас проверка пароля не смотрит на дату увольнения пока.
-            # По-хорошему надо бы. Но пока просто помечаем.
+                                                                                                  
+                                                           
             Toast.success(self, "Готово", f"{name} уволен.")
             self.load_data()

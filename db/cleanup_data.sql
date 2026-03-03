@@ -1,0 +1,2 @@
+TRUNCATE TABLE "ПланЗаготовок",
+Заказ RESTART IDENTITY CASCADE;

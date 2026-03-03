@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-# Добавляем путь для импорта config
+                                   
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
@@ -24,7 +24,7 @@ from config import config
 
 
 class LoginWindow(QWidget):
-    # Сигнал успешного входа (передает ID сотрудника, Роль, ФИО)
+                                                                
     loginSuccess = pyqtSignal(int, str, str)
 
     def __init__(self):
@@ -33,20 +33,20 @@ class LoginWindow(QWidget):
         self.setWindowTitle("Nova Forma CRM - Вход")
         self.setFixedSize(450, 600)
 
-        # Настройка интерфейса
+                              
         self.setup_ui()
 
     def setup_ui(self):
-        # Основной слой
+                       
         main_layout = QVBoxLayout(self)
         main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Карточка входа (Container)
+                                    
         container = QFrame()
         container.setObjectName("LoginContainer")
         container.setFixedSize(380, 500)
 
-        # Тень для красоты (объем)
+                                  
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(20)
         shadow.setColor(QColor(0, 0, 0, 30))
@@ -57,12 +57,12 @@ class LoginWindow(QWidget):
         layout.setSpacing(15)
         layout.setContentsMargins(30, 40, 30, 40)
 
-        # 1. Логотип
+                    
         logo_label = QLabel()
         logo_path = os.path.join("assets", "logo.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Масштабируем логотип, сохраняя пропорции
+                                                      
             scaled_pixmap = pixmap.scaled(
                 120,
                 120,
@@ -75,7 +75,7 @@ class LoginWindow(QWidget):
             logo_label.setStyleSheet("font-weight: bold; font-size: 20px;")
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # 2. Текст приветствия
+                              
         title = QLabel("Добро пожаловать")
         title.setObjectName("Header")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -84,10 +84,10 @@ class LoginWindow(QWidget):
         subtitle.setObjectName("SubHeader")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # 3. Поля ввода
+                       
         self.login_input = QLineEdit()
         self.login_input.setPlaceholderText("Логин")
-        # Добавляем иконку внутрь поля (Action)
+                                               
         self.login_input.addAction(
             qta.icon("fa5s.user", color="#95A5A6"),
             QLineEdit.ActionPosition.LeadingPosition,
@@ -100,22 +100,22 @@ class LoginWindow(QWidget):
             qta.icon("fa5s.lock", color="#95A5A6"),
             QLineEdit.ActionPosition.LeadingPosition,
         )
-        # Обработка Enter
+                         
         self.password_input.returnPressed.connect(self.handle_login)
 
-        # 4. Кнопка входа
+                         
         self.login_btn = QPushButton("ВОЙТИ")
         self.login_btn.setObjectName("PrimaryButton")
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.login_btn.clicked.connect(self.handle_login)
 
-        # 5. Метка ошибки (скрыта по умолчанию)
+                                               
         self.error_label = QLabel("")
         self.error_label.setObjectName("ErrorLabel")
         self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.error_label.hide()
 
-        # Добавляем всё в лайаут
+                                
         layout.addWidget(logo_label)
         layout.addSpacing(10)
         layout.addWidget(title)
@@ -137,7 +137,7 @@ class LoginWindow(QWidget):
             self.show_error("Введите логин и пароль")
             return
 
-        # Используем вызов процедуры
+                                    
         try:
             result = Database.call_procedure('sp_login', [login, password])
             
@@ -149,7 +149,7 @@ class LoginWindow(QWidget):
                 
                 self.loginSuccess.emit(user_id, role, fio)
             else:
-                # Ошибка (Неверный пароль или пользователь не найден)
+                                                                     
                 msg = result.get('message', 'Ошибка входа')
                 self.show_error(msg)
 
@@ -159,4 +159,4 @@ class LoginWindow(QWidget):
     def show_error(self, message):
         self.error_label.setText(message)
         self.error_label.show()
-        # Эффект дрожания можно добавить позже
+                                              

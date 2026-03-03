@@ -34,7 +34,7 @@ class ClickableCard(QFrame):
         super().__init__()
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-        # Стиль статический, чтобы не было дерганий при ховере
+                                                              
         self.setStyleSheet(
             f"""
             QFrame {{
@@ -50,20 +50,20 @@ class ClickableCard(QFrame):
         )
         self.setFixedSize(240, 110)
 
-        # --- Эффект Тени ---
+                             
         self.shadow = QGraphicsDropShadowEffect(self)
-        self.shadow.setBlurRadius(10)  # Начальное размытие
+        self.shadow.setBlurRadius(10)                      
         self.shadow.setXOffset(0)
         self.shadow.setYOffset(3)
-        self.shadow.setColor(QColor(0, 0, 0, 30))  # Прозрачный черный
+        self.shadow.setColor(QColor(0, 0, 0, 30))                     
         self.setGraphicsEffect(self.shadow)
 
-        # Анимация Размытия (Blur)
+                                  
         self.anim_blur = QPropertyAnimation(self.shadow, b"blurRadius")
         self.anim_blur.setDuration(200)
         self.anim_blur.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-        # Layout
+                
         layout = QVBoxLayout(self)
         top = QHBoxLayout()
         lbl_title = QLabel(title)
@@ -93,15 +93,15 @@ class ClickableCard(QFrame):
     def enterEvent(self, event):
         """Наведение: Тень становится зеленой и большой"""
         self.anim_blur.stop()
-        self.shadow.setColor(QColor("#27AE60"))  # Зеленая тень
-        self.anim_blur.setEndValue(30)  # Большое размытие
+        self.shadow.setColor(QColor("#27AE60"))                
+        self.anim_blur.setEndValue(30)                    
         self.anim_blur.start()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         """Уход: Тень возвращается в серый и уменьшается"""
         self.anim_blur.stop()
-        self.shadow.setColor(QColor(0, 0, 0, 30))  # Черная прозрачная
+        self.shadow.setColor(QColor(0, 0, 0, 30))                     
         self.anim_blur.setEndValue(10)
         self.anim_blur.start()
         super().leaveEvent(event)
@@ -118,7 +118,7 @@ class DashboardTab(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Фильтры
+                 
         filter_group = QGroupBox("Период статистики")
         filter_layout = QHBoxLayout(filter_group)
 
@@ -140,11 +140,11 @@ class DashboardTab(QWidget):
 
         layout.addWidget(filter_group)
 
-        # Сетка
+               
         self.grid = QGridLayout()
-        self.grid.setSpacing(20)  # Больше воздуха
+        self.grid.setSpacing(20)                  
 
-        # Ряд 1
+               
         self.c_revenue = self.add_card(
             0, 0, "Выручка", "0 ₽", "fa5s.coins", "#27AE60", "revenue"
         )
@@ -158,7 +158,7 @@ class DashboardTab(QWidget):
             0, 3, "Заказов закрыто", "0", "fa5s.check-double", "#F39C12", "orders_count"
         )
 
-        # Ряд 2
+               
         self.c_avg = self.add_card(
             1, 0, "Средний чек", "0 ₽", "fa5s.receipt", "#9B59B6", "avg_check"
         )
@@ -186,66 +186,53 @@ class DashboardTab(QWidget):
         d_start = self.date_from.date().toString("yyyy-MM-dd")
         d_end = self.date_to.date().toString("yyyy-MM-dd")
 
-        # SQL с учетом ВСЕХ финальных статусов
-        # 1. Выручка (выполнен + завершен + отгружен)
-        rev_res = Database.fetch_one(
-            """
-            SELECT COALESCE(SUM(сумма_заказа), 0) as rev, COUNT(*) as cnt 
-            FROM заказы 
-            WHERE status IN ('выполнен', 'завершен', 'отгружен') 
-              AND дата_заказа BETWEEN %s AND %s
-        """.replace(
-                "status", "статус"
-            ),
-            (d_start, d_end),
-        )  # fix column name just in case
+        try:
+                                      
+                                                                             
+            res = Database.fetch_one(
+                "SELECT * FROM sp_get_dashboard_summary(%s, %s)", 
+                (d_start, d_end)
+            )
 
-        revenue = float(rev_res["rev"])
-        orders_count = int(rev_res["cnt"])
+            if not res:
+                                                                             
+                revenue = 0.0
+                orders_count = 0
+                expenses = 0.0
+                cancels = 0
+                staff = 0
+            else:
+                revenue = float(res.get("revenue") or 0)
+                orders_count = int(res.get("orders_count") or 0)
+                expenses = float(res.get("expenses") or 0)
+                cancels = int(res.get("cancels") or 0)
+                staff = int(res.get("staff_count") or 0)
 
-        # 2. Расходы
-        exp_res = Database.fetch_one(
-            """
-            SELECT COALESCE(SUM(sz.количество * sz.цена_закупки), 0) as exp
-            FROM закупки_материалов zm
-            JOIN состав_закупки sz ON zm.id_закупки = sz.id_закупки
-            WHERE zm.статус='выполнено' AND дата_закупки BETWEEN %s AND %s
-        """,
-            (d_start, d_end),
-        )
-        expenses = float(exp_res["exp"])
+                                                                                       
+            profit = revenue - expenses
+                                                                                    
+                                                                                                  
+                                                                                       
+                                  
+                                                 
+            
+            avg_check = revenue / orders_count if orders_count > 0 else 0
+            margin = (profit / revenue * 100) if revenue > 0 else 0
+            total_orders = orders_count + cancels
+            cancel_rate = (cancels / total_orders * 100) if total_orders > 0 else 0
 
-        # 3. Отмены
-        cancel_res = Database.fetch_one(
-            """
-            SELECT COUNT(*) as cnt FROM заказы 
-            WHERE статус='отменен' AND дата_заказа BETWEEN %s AND %s
-        """,
-            (d_start, d_end),
-        )
-        cancels = int(cancel_res["cnt"])
-
-        # 4. Сотрудники
-        staff_res = Database.fetch_one(
-            "SELECT COUNT(*) as cnt FROM сотрудники WHERE дата_увольнения IS NULL"
-        )
-        staff = staff_res["cnt"]
-
-        # Расчеты
-        profit = revenue - expenses
-        avg_check = revenue / orders_count if orders_count > 0 else 0
-        margin = (profit / revenue * 100) if revenue > 0 else 0
-        total_orders = orders_count + cancels
-        cancel_rate = (cancels / total_orders * 100) if total_orders > 0 else 0
-
-        self.c_revenue.set_value(f"{revenue:,.0f} ₽")
-        self.c_expense.set_value(f"{expenses:,.0f} ₽")
-        self.c_profit.set_value(f"{profit:,.0f} ₽")
-        self.c_orders.set_value(str(orders_count))
-        self.c_avg.set_value(f"{avg_check:,.0f} ₽")
-        self.c_margin.set_value(f"{margin:.1f} %")
-        self.c_cancel.set_value(f"{cancel_rate:.1f} %")
-        self.c_active.set_value(str(staff))
+            self.c_revenue.set_value(f"{revenue:,.0f} ₽")
+            self.c_expense.set_value(f"{expenses:,.0f} ₽")
+            self.c_profit.set_value(f"{profit:,.0f} ₽")
+            self.c_orders.set_value(str(orders_count))
+            self.c_avg.set_value(f"{avg_check:,.0f} ₽")
+            self.c_margin.set_value(f"{margin:.1f} %")
+            self.c_cancel.set_value(f"{cancel_rate:.1f} %")
+            self.c_active.set_value(str(staff))
+            
+        except Exception as e:
+            print(f"Error loading dashboard: {e}")
+            Toast.error(self, "Ошибка", "Не удалось загрузить данные")
 
     def open_detail(self, title, metric_type):
         d_start = self.date_from.date().toString("yyyy-MM-dd")
@@ -255,6 +242,7 @@ class DashboardTab(QWidget):
         if not query:
             return
 
+                                                              
         rows = Database.fetch_all(query, (d_start, d_end))
 
         data = {}
@@ -274,40 +262,18 @@ class DashboardTab(QWidget):
         dialog.exec()
 
     def get_metric_query(self, metric_type):
-        # ВАЖНО: Используем кириллицу 'статус' для названий колонок в WHERE
+                                                   
         if metric_type == "revenue":
-            return """
-                SELECT дата_заказа as d, SUM(сумма_заказа) as val FROM заказы 
-                WHERE статус IN ('выполнен', 'завершен', 'отгружен') 
-                AND дата_заказа BETWEEN %s AND %s GROUP BY d ORDER BY d
-            """
+            return "SELECT * FROM sp_get_sales_chart_data(%s, %s)"
         elif metric_type == "expenses":
-            return """
-                SELECT дата_закупки as d, SUM(sz.количество * sz.цена_закупки) as val
-                FROM закупки_материалов zm JOIN состав_закупки sz ON zm.id_закупки = sz.id_закупки
-                WHERE zm.статус='выполнено' AND дата_закупки BETWEEN %s AND %s GROUP BY d ORDER BY d
-            """
+            return "SELECT * FROM sp_get_expenses_chart_data(%s, %s)"
         elif metric_type == "profit":
-            return """
-                SELECT дата_заказа as d, SUM(сумма_заказа) * 0.3 as val FROM заказы 
-                WHERE статус IN ('выполнен', 'завершен', 'отгружен') 
-                AND дата_заказа BETWEEN %s AND %s GROUP BY d ORDER BY d
-            """
+                                                                         
+            return "SELECT * FROM sp_get_profit_chart_data(%s, %s)"
         elif metric_type == "orders_count":
-            return """
-                SELECT дата_заказа as d, COUNT(*) as val FROM заказы 
-                WHERE статус IN ('выполнен', 'завершен', 'отгружен') 
-                AND дата_заказа BETWEEN %s AND %s GROUP BY d ORDER BY d
-            """
+            return "SELECT * FROM sp_get_orders_count_chart_data(%s, %s)"
         elif metric_type == "avg_check":
-            return """
-                SELECT дата_заказа as d, AVG(сумма_заказа) as val FROM заказы 
-                WHERE статус IN ('выполнен', 'завершен', 'отгружен') 
-                AND дата_заказа BETWEEN %s AND %s GROUP BY d ORDER BY d
-            """
+            return "SELECT * FROM sp_get_avg_check_chart_data(%s, %s)"
         elif metric_type == "cancel_rate":
-            return """
-                SELECT дата_заказа as d, (COUNT(*) FILTER (WHERE статус = 'отменен')::numeric / COUNT(*)) * 100 as val
-                FROM заказы WHERE дата_заказа BETWEEN %s AND %s GROUP BY d ORDER BY d
-            """
+            return "SELECT * FROM sp_get_cancel_rate_chart_data(%s, %s)"
         return None

@@ -7,7 +7,7 @@ import bcrypt
 import psycopg2
 from faker import Faker
 
-# Настройка путей
+                 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import config
 
@@ -26,24 +26,24 @@ def seed():
 
     print("🧹 Очистка таблиц (TRUNCATE)...")
     tables = [
-        "план_заготовок",
-        "состав_закупки",
-        "закупки_материалов",
-        "график_работы",
-        "состав_заказа",
-        "состав_изделия",
+        "ПланЗаготовок",
+        "СоставЗакупки",
+        "Закупка",
+        "График",
+        "СоставЗаказа",
+        "СоставИзделия",
         "расход_материалов",
-        "заказы",
-        "изделия",
-        "заготовки",
-        "материалы",
-        "клиенты",
-        "сотрудники",
+        "Заказ",
+        "Изделие",
+        "Заготовка",
+        "Материал",
+        "Клиент",
+        "Сотрудник",
     ]
     for table in tables:
         cur.execute(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE;")
 
-    # --- 1. МАТЕРИАЛЫ (минимум 20) ---
+                                       
     print("🌱 1. Генерация материалов...")
     base_materials = [
         ("ДСП Белый", "лист", 1500),
@@ -76,14 +76,14 @@ def seed():
     for name, unit, price in base_materials:
         cur.execute(
             """
-            INSERT INTO материалы (артикул_материала, наименование, количество_на_складе, единица_измерения, цена_за_единицу)
+            INSERT INTO Материал (артикул_материала, наименование, количество_на_складе, единица_измерения, цена_за_единицу)
             VALUES (%s, %s, %s, %s, %s) RETURNING id_материала
         """,
             (fake.unique.ean8(), name, random.randint(0, 1000), unit, price),
         )
         material_ids.append(cur.fetchone()[0])
 
-    # --- 2. ЗАГОТОВКИ ---
+                          
     print("🌱 2. Генерация заготовок и расхода материалов...")
     zagotovki_names = [
         "Боковина шкафа 2200х600",
@@ -104,7 +104,7 @@ def seed():
     for z_name in zagotovki_names:
         cur.execute(
             """
-            INSERT INTO заготовки (артикул_заготовки, наименование, количество_готовых, описание)
+            INSERT INTO Заготовка (артикул_заготовки, наименование, количество_готовых, описание)
             VALUES (%s, %s, %s, %s) RETURNING id_заготовки
         """,
             (
@@ -117,8 +117,8 @@ def seed():
         z_id = cur.fetchone()[0]
         zagotovki_ids.append(z_id)
 
-        # Связь: Заготовка -> Материалы (расход)
-        # Каждая заготовка состоит из 1-3 случайных материалов
+                                                
+                                                              
         used_mats = random.sample(material_ids, k=random.randint(1, 3))
         for m_id in used_mats:
             cur.execute(
@@ -129,7 +129,7 @@ def seed():
                 (z_id, m_id, random.randint(1, 5)),
             )
 
-    # --- 3. ИЗДЕЛИЯ ---
+                        
     print("🌱 3. Генерация изделий и их состава...")
     products_base = [
         ("Шкаф-купе 'Лидер'", "шкаф"),
@@ -146,7 +146,7 @@ def seed():
     for p_name, p_type in products_base:
         cur.execute(
             """
-            INSERT INTO изделия (артикул_изделия, наименование, тип, размеры, стоимость)
+            INSERT INTO Изделие (артикул_изделия, наименование, тип, размеры, стоимость)
             VALUES (%s, %s, %s, %s, %s) RETURNING id_изделия
         """,
             (
@@ -160,26 +160,26 @@ def seed():
         p_id = cur.fetchone()[0]
         product_ids.append(p_id)
 
-        # Связь: Изделие -> Заготовки (состав изделия)
-        # Каждое изделие состоит из 2-5 случайных заготовок
+                                                      
+                                                           
         used_zags = random.sample(zagotovki_ids, k=random.randint(2, 5))
         for z_id in used_zags:
             cur.execute(
                 """
-                INSERT INTO состав_изделия (id_изделия, id_заготовки, количество_заготовки)
+                INSERT INTO СоставИзделия (id_изделия, id_заготовки, количество_заготовки)
                 VALUES (%s, %s, %s)
             """,
                 (p_id, z_id, random.randint(1, 4)),
             )
 
-    # --- 4. СОТРУДНИКИ ---
+                           
     print("🌱 4. Генерация сотрудников (Строго: 2 Дир, 8 Мен, 5 Сбор)...")
     employees_ids = []
 
-    # Список ролей в нужном количестве
+                                      
     roles_distribution = ["директор"] * 2 + ["менеджер"] * 8 + ["сборщик"] * 5
-    # Перемешаем, чтобы они шли не по порядку ID, или оставим как есть?
-    # Лучше оставим как есть для наглядности в БД.
+                                                                       
+                                                  
 
     for i, role in enumerate(roles_distribution):
         gender = random.choice(["M", "F"])
@@ -188,7 +188,7 @@ def seed():
         else:
             fio = fake.first_name_female() + " " + fake.last_name_female()
 
-        # Для удобства тестирования создадим предсказуемые логины
+                                                                 
         if i == 0:
             login = "director"
             fio = "Директор Иван"
@@ -205,14 +205,14 @@ def seed():
 
         cur.execute(
             """
-            INSERT INTO сотрудники (фио, номер_телефона, дата_рождения, должность, зарплата, дата_найма, login, password_hash)
+            INSERT INTO Сотрудник (фио, номер_телефона, дата_рождения, должность, зарплата, дата_найма, login, password_hash)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id_сотрудника
         """,
             (
                 fio,
                 fake.unique.phone_number(),
                 fake.date_of_birth(minimum_age=18, maximum_age=60),
-                role,  # Роль из нашего списка
+                role,                         
                 random.randint(40000, 150000),
                 fake.date_between(start_date="-5y", end_date="today"),
                 login,
@@ -221,19 +221,19 @@ def seed():
         )
         employees_ids.append(cur.fetchone()[0])
 
-    # --- 5. ГРАФИК РАБОТЫ (По умолчанию 5/2) ---
+                                                 
     print("🌱 5. Заполнение графика (СБ/ВС - выходной)...")
     today = date.today()
-    # Генерируем график на текущий месяц и следующий
-    start_date = today.replace(day=1)  # Первое число текущего месяца
+                                                    
+    start_date = today.replace(day=1)                                
     days_to_generate = 60
 
     for emp_id in employees_ids:
         for day_offset in range(days_to_generate):
             current_day = start_date + timedelta(days=day_offset)
-            weekday = current_day.weekday()  # 0=ПН, 5=СБ, 6=ВС
+            weekday = current_day.weekday()                    
 
-            # Логика по умолчанию
+                                 
             if weekday >= 5:
                 status = "выходной"
             else:
@@ -241,16 +241,16 @@ def seed():
 
             cur.execute(
                 """
-                INSERT INTO график_работы (id_сотрудника, дата, статус)
+                INSERT INTO График (id_сотрудника, дата, статус)
                 VALUES (%s, %s, %s)
             """,
                 (emp_id, current_day, status),
             )
 
-    # --- 6. КЛИЕНТЫ (минимум 100) ---
+                                      
     print("🌱 6. Генерация клиентов (100+)...")
     client_ids = []
-    for _ in range(110):  # С запасом
+    for _ in range(110):             
         gender = random.choice(["M", "F"])
         if gender == "M":
             name = f"{fake.last_name_male()} {fake.first_name_male()} {fake.middle_name_male()}"
@@ -259,7 +259,7 @@ def seed():
 
         cur.execute(
             """
-            INSERT INTO клиенты (фио, номер_телефона, адрес, дата_регистрации, инн)
+            INSERT INTO Клиент (фио, номер_телефона, адрес, дата_регистрации, инн)
             VALUES (%s, %s, %s, %s, %s) RETURNING id_клиента
         """,
             (
@@ -272,11 +272,11 @@ def seed():
         )
         client_ids.append(cur.fetchone()[0])
 
-    # --- 7. ЗАКАЗЫ и СОСТАВ ЗАКАЗА (минимум 100) ---
+                                                     
     print("🌱 7. Генерация заказов (умные статусы)...")
     order_ids = []
 
-    # Веса для статусов: больше активных и завершенных, мало отмененных
+                                                                       
     statuses = ["принят", "в_работе", "выполнен", "отгружен", "завершен", "отменен"]
     weights = [0.15, 0.25, 0.15, 0.10, 0.30, 0.05]
 
@@ -284,30 +284,30 @@ def seed():
         client = random.choice(client_ids)
         manager = random.choice(employees_ids)
 
-        # Выбираем статус с учетом весов
+                                        
         status = random.choices(statuses, weights=weights, k=1)[0]
 
-        # Логика дат в зависимости от статуса
+                                             
         if status in ["завершен", "отгружен", "выполнен", "отменен"]:
-            # Старые заказы (были сделаны в прошлом)
+                                                   
             d_order = fake.date_between(start_date="-60d", end_date="-10d")
-            # Готовность была через 5-10 дней после заказа
+                                                          
             d_ready = d_order + timedelta(days=random.randint(5, 10))
         else:
-            # Активные заказы (сделаны недавно)
+                                              
             d_order = fake.date_between(start_date="-10d", end_date="today")
 
-            # Шанс на просрочку (10%)
+                                     
             if random.random() < 0.1:
-                # Дедлайн был вчера (Просрочен)
+                                               
                 d_ready = d_order + timedelta(days=random.randint(1, 3))
             else:
-                # Дедлайн в будущем (В норме)
+                                             
                 d_ready = date.today() + timedelta(days=random.randint(5, 20))
 
         cur.execute(
             """
-            INSERT INTO заказы (id_клиента, id_менеджера, дата_заказа, дата_готовности, статус, сумма_заказа)
+            INSERT INTO Заказ (id_клиента, id_менеджера, дата_заказа, дата_готовности, статус, сумма_заказа)
             VALUES (%s, %s, %s, %s, %s, %s) RETURNING id_заказа
         """,
             (client, manager, d_order, d_ready, status, 0),
@@ -315,19 +315,19 @@ def seed():
         o_id = cur.fetchone()[0]
         order_ids.append(o_id)
 
-        # Состав заказа: 1-5 изделий
+                                    
         items_count = random.randint(1, 5)
         total_sum = 0
         used_products = random.sample(product_ids, k=items_count)
 
         for p_id in used_products:
-            cur.execute("SELECT стоимость FROM изделия WHERE id_изделия = %s", (p_id,))
+            cur.execute("SELECT стоимость FROM Изделие WHERE id_изделия = %s", (p_id,))
             price = cur.fetchone()[0]
             qty = random.randint(1, 4)
 
             cur.execute(
                 """
-                INSERT INTO состав_заказа (id_заказа, id_изделия, количество_изделий, цена_фиксированная)
+                INSERT INTO СоставЗаказа (id_заказа, id_изделия, количество_изделий, цена_фиксированная)
                 VALUES (%s, %s, %s, %s)
             """,
                 (o_id, p_id, qty, price),
@@ -335,25 +335,25 @@ def seed():
             total_sum += price * qty
 
         cur.execute(
-            "UPDATE заказы SET сумма_заказа = %s WHERE id_заказа = %s",
+            "UPDATE Заказ SET сумма_заказа = %s WHERE id_заказа = %s",
             (total_sum, o_id),
         )
 
-    # --- 8. ПЛАН ЗАГОТОВОК ---
+                               
     print("🌱 8. Генерация плана производства...")
-    # Берем активные заказы
-    for o_id in order_ids[:50]:  # Для половины заказов создадим план
-        # Получаем изделия заказа
+                          
+    for o_id in order_ids[:50]:                                      
+                                 
         cur.execute(
-            "SELECT id_изделия, количество_изделий FROM состав_заказа WHERE id_заказа = %s",
+            "SELECT id_изделия, количество_изделий FROM СоставЗаказа WHERE id_заказа = %s",
             (o_id,),
         )
         order_items = cur.fetchall()
 
         for p_id, p_qty in order_items:
-            # Получаем заготовки для изделия
+                                            
             cur.execute(
-                "SELECT id_заготовки, количество_заготовки FROM состав_изделия WHERE id_изделия = %s",
+                "SELECT id_заготовки, количество_заготовки FROM СоставИзделия WHERE id_изделия = %s",
                 (p_id,),
             )
             parts = cur.fetchall()
@@ -362,7 +362,7 @@ def seed():
                 total_parts_needed = p_qty * z_qty_per_item
                 assembler = random.choice(employees_ids)
                 
-                # Корректная логика статусов: выполнено только если факт >= план
+                                                                                
                 fact_qty = random.randint(0, total_parts_needed)
                 if fact_qty >= total_parts_needed:
                     status = "выполнено"
@@ -373,14 +373,14 @@ def seed():
 
                 cur.execute(
                     """
-                    INSERT INTO план_заготовок (id_заготовки, id_заказа, id_сотрудника, плановое_количество, фактическое_количество, дата_план, статус)
+                    INSERT INTO ПланЗаготовок (id_заготовки, id_заказа, id_сотрудника, плановое_количество, фактическое_количество, дата_план, статус)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id_заготовки, id_заказа) DO UPDATE SET 
-                        плановое_количество = план_заготовок.плановое_количество + EXCLUDED.плановое_количество,
-                        фактическое_количество = план_заготовок.фактическое_количество + EXCLUDED.фактическое_количество,
+                        плановое_количество = ПланЗаготовок.плановое_количество + EXCLUDED.плановое_количество,
+                        фактическое_количество = ПланЗаготовок.фактическое_количество + EXCLUDED.фактическое_количество,
                         статус = CASE 
-                            WHEN (план_заготовок.фактическое_количество + EXCLUDED.фактическое_количество) >= (план_заготовок.плановое_количество + EXCLUDED.плановое_количество) THEN 'выполнено'
-                            WHEN (план_заготовок.фактическое_количество + EXCLUDED.фактическое_количество) > 0 THEN 'в_работе'
+                            WHEN (ПланЗаготовок.фактическое_количество + EXCLUDED.фактическое_количество) >= (ПланЗаготовок.плановое_количество + EXCLUDED.плановое_количество) THEN 'выполнено'
+                            WHEN (ПланЗаготовок.фактическое_количество + EXCLUDED.фактическое_количество) > 0 THEN 'в_работе'
                             ELSE 'принято'
                         END
                 """,
@@ -395,7 +395,7 @@ def seed():
                     ),
                 )
 
-    # --- 9. ЗАКУПКИ И СОСТАВ ---
+                                 
     print("🌱 9. Генерация закупок...")
     suppliers = [
         "ООО 'ЛесСнаб'",
@@ -407,31 +407,31 @@ def seed():
     for _ in range(20):
         cur.execute(
             """
-            INSERT INTO закупки_материалов (поставщик, статус)
+            INSERT INTO Закупка (поставщик, статус)
             VALUES (%s, %s) RETURNING id_закупки
         """,
             (random.choice(suppliers), random.choice(["выполнено", "подтверждено"])),
         )
         z_id = cur.fetchone()[0]
 
-        # Товары в закупке
+                          
         bought_mats = random.sample(material_ids, k=random.randint(3, 8))
         for m_id in bought_mats:
             cur.execute(
-                "SELECT цена_за_единицу FROM материалы WHERE id_материала = %s", (m_id,)
+                "SELECT цена_за_единицу FROM Материал WHERE id_материала = %s", (m_id,)
             )
             base_price = cur.fetchone()[0]
 
             cur.execute(
                 """
-                INSERT INTO состав_закупки (id_закупки, id_материала, количество, цена_закупки)
+                INSERT INTO СоставЗакупки (id_закупки, id_материала, количество, цена_закупки)
                 VALUES (%s, %s, %s, %s)
             """,
                 (
                     z_id,
                     m_id,
                     random.randint(10, 100),
-                    float(base_price) * 0.9,  # Покупаем чуть дешевле розницы
+                    float(base_price) * 0.9,                                 
                 ),
             )
 

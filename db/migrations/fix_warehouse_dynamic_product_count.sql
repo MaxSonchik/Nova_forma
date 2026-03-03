@@ -1,0 +1,64 @@
+-- Fix for sp_get_warehouse_summary:
+-- Products (Изделие) quantity should be dynamically calculated 
+-- based on the availability of its required components (Заготовка)
+-- according to СоставИзделия.
+DROP FUNCTION IF EXISTS sp_get_warehouse_summary(VARCHAR, VARCHAR);
+CREATE OR REPLACE FUNCTION sp_get_warehouse_summary(
+        p_search_text VARCHAR DEFAULT NULL,
+        p_type VARCHAR DEFAULT NULL
+    ) RETURNS TABLE (
+        id_объекта INTEGER,
+        тип VARCHAR,
+        наименование VARCHAR,
+        количество INTEGER,
+        ед_изм VARCHAR
+    ) LANGUAGE plpgsql AS $$ BEGIN RETURN QUERY WITH warehouse_data AS (
+        -- 1. Материалы (Raw Materials)
+        SELECT m.id_материала as id_объекта,
+            'Материал'::VARCHAR as тип,
+            m.наименование,
+            m.количество_на_складе as количество,
+            m.единица_измерения as ед_изм
+        FROM Материал m
+        UNION ALL
+        -- 2. Заготовки (Components)
+        SELECT z.id_заготовки as id_объекта,
+            'Заготовка'::VARCHAR as тип,
+            z.наименование,
+            z.количество_готовых as количество,
+            'шт'::VARCHAR as ед_изм
+        FROM Заготовка z
+        UNION ALL
+        -- 3. Изделия (Products)
+        SELECT i.id_изделия as id_объекта,
+            'Изделие'::VARCHAR as тип,
+            i.наименование,
+            -- Вычисляем сколько изделий можно собрать из текущих заготовок
+            (
+                SELECT COALESCE(
+                        MIN(
+                            FLOOR(z.количество_готовых / si.количество_заготовки)
+                        ),
+                        0
+                    )::INTEGER
+                FROM СоставИзделия si
+                    JOIN Заготовка z ON z.id_заготовки = si.id_заготовки
+                WHERE si.id_изделия = i.id_изделия
+            ) as количество,
+            'шт'::VARCHAR as ед_изм
+        FROM Изделие i
+    )
+SELECT *
+FROM warehouse_data wd
+WHERE (
+        p_search_text IS NULL
+        OR LOWER(wd.наименование) LIKE LOWER('%' || p_search_text || '%')
+    )
+    AND (
+        p_type IS NULL
+        OR wd.тип = p_type
+    )
+ORDER BY wd.тип,
+    wd.наименование;
+END;
+$$;

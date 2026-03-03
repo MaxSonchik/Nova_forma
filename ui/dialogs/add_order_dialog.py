@@ -30,18 +30,20 @@ class OrderTasksDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
-        # Header with warnings if any
+                                     
         if warnings:
             warn_label = QLabel("<b>Замечания:</b>")
             layout.addWidget(warn_label)
             for w in warnings:
-                layout.addWidget(QLabel(w))
+                msg_lbl = QLabel(w)
+                msg_lbl.setWordWrap(True)
+                layout.addWidget(msg_lbl)
             layout.addSpacing(10)
         
-        # Title
+               
         layout.addWidget(QLabel(f"<h3>Созданные производственные задачи:</h3>"))
         
-        # Table
+               
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["Тип", "Наименование", "Количество", "Статус"])
@@ -57,7 +59,7 @@ class OrderTasksDialog(QDialog):
         
         layout.addWidget(self.table)
         
-        # Buttons
+                 
         btn_layout = QHBoxLayout()
         btn_close = QPushButton("Закрыть")
         btn_close.clicked.connect(self.accept)
@@ -80,7 +82,7 @@ class OrderTasksDialog(QDialog):
             for i, t in enumerate(tasks):
                 self.table.insertRow(i)
                 
-                # Type with icon
+                                
                 type_text = "🔧 Заготовка" if t['тип_задачи'] == 'заготовка' else "📦 Сборка"
                 self.table.setItem(i, 0, QTableWidgetItem(type_text))
                 self.table.setItem(i, 1, QTableWidgetItem(t['наименование']))
@@ -98,7 +100,7 @@ class AddOrderDialog(QDialog):
         self.setWindowTitle("Новый заказ")
         self.resize(700, 500)
 
-        # Корзина: список словарей {'id': 1, 'name': '...', 'qty': 2, 'price': 100}
+                                                                                   
         self.cart_items = []
         self.navigate_to_plan_order_id = None
 
@@ -108,23 +110,23 @@ class AddOrderDialog(QDialog):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # --- 1. ШАПКА ЗАКАЗА ---
+                                 
         top_layout = QHBoxLayout()
 
-        # Выбор клиента
+                       
         lbl_client = QLabel("Клиент:")
         self.combo_client = QComboBox()
-        self.combo_client.setEditable(True)  # Чтобы можно было писать имя
+        self.combo_client.setEditable(True)                               
         self.combo_client.setPlaceholderText("Начните вводить имя...")
 
-        # Дата готовности
+                         
         lbl_date = QLabel("Дата готовности:")
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
-        self.date_edit.setDate(QDate.currentDate().addDays(1))  # Минимум завтра
+        self.date_edit.setDate(QDate.currentDate().addDays(1))                  
         self.date_edit.setMinimumDate(
             QDate.currentDate().addDays(1)
-        )  # Блокируем прошлое
+        )                     
 
         top_layout.addWidget(lbl_client)
         top_layout.addWidget(self.combo_client, 2)
@@ -137,7 +139,7 @@ class AddOrderDialog(QDialog):
         layout.addSpacing(10)
         layout.addWidget(QLabel("<b>Добавление товаров:</b>"))
 
-        # --- 2. ДОБАВЛЕНИЕ ТОВАРА ---
+                                      
         prod_layout = QHBoxLayout()
 
         self.combo_product = QComboBox()
@@ -158,7 +160,7 @@ class AddOrderDialog(QDialog):
 
         layout.addLayout(prod_layout)
 
-        # --- 3. ТАБЛИЦА КОРЗИНЫ ---
+                                    
         self.table_cart = QTableWidget()
         self.table_cart.setColumnCount(4)
         self.table_cart.setHorizontalHeaderLabels(
@@ -169,7 +171,7 @@ class AddOrderDialog(QDialog):
         )
         layout.addWidget(self.table_cart)
 
-        # --- 4. ПОДВАЛ (Сумма и Кнопки) ---
+                                            
         bottom_layout = QHBoxLayout()
 
         self.lbl_total = QLabel("Итого: 0.00 ₽")
@@ -193,12 +195,12 @@ class AddOrderDialog(QDialog):
 
     def load_dictionaries(self):
         """Загрузка клиентов и изделий через процедуры"""
-        # Клиенты
+                 
         clients = Database.fetch_all("SELECT * FROM sp_get_clients()")
         for c in clients:
             self.combo_client.addItem(c["фио"], c["id_клиента"])
 
-        # Изделия
+                 
         products = Database.fetch_all("SELECT * FROM sp_get_products()")
         for p in products:
             text = f"{p['наименование']} (Остаток: {p['количество_на_складе']}) - {p['стоимость']} ₽"
@@ -211,15 +213,15 @@ class AddOrderDialog(QDialog):
         if idx == -1:
             return
 
-        # Получаем данные из userData
-        p_data = self.combo_product.itemData(idx)  # (id, price, name)
+                                     
+        p_data = self.combo_product.itemData(idx)                     
         if not p_data:
             return
 
         p_id, p_price, p_name = p_data
         qty = self.spin_qty.value()
 
-        # Добавляем в список (или обновляем, если уже есть)
+                                                           
         for item in self.cart_items:
             if item["id"] == p_id:
                 item["qty"] += qty
@@ -262,54 +264,38 @@ class AddOrderDialog(QDialog):
         deadline = self.date_edit.date().toString("yyyy-MM-dd")
 
         try:
-            # 1. Создаем заголовок заказа через процедуру
-            res_order = Database.call_procedure(
-                'sp_create_order', 
-                [client_id, self.manager_id, deadline]
+                                                         
+            res_order = Database.create_order_transaction(
+                client_id, self.manager_id, deadline, self.cart_items
             )
 
             if res_order.get('status') != 'OK':
-                raise Exception(res_order.get('message', 'Ошибка создания заказа'))
+                QMessageBox.critical(self, "Ошибка создания заказа", res_order.get('message', 'Неизвестная ошибка'))
+                return
 
-            order_id = res_order.get('new_order_id')
-            warnings = []
+            order_id = res_order.get('id_заказа')
+            warnings = res_order.get('warnings', [])
 
-            # 2. Добавление товаров через процедуру
-            for item in self.cart_items:
-                res_item = Database.call_procedure(
-                    'sp_add_order_item', 
-                    [order_id, item["id"], item["qty"]]
-                )
-
-                status = res_item.get('status')
-                msg = res_item.get('message', '')
-
-                if status == 'WARNING':
-                    warnings.append(f"- {item['name']}: {msg}")
-                elif status == 'ERROR':
-                    # Логируем, но не прерываем (или прерываем? по ТЗ - обработка всех исключений на БД)
-                    # Если БД вернула Error, значит позиция не добавлена.
-                    warnings.append(f"❌ Ошибка {item['name']}: {msg}")
-
-            # Успех
+                   
             if warnings:
-                # Check if any warning is a critical purchase error
+                                                                   
                 is_critical = any("НЕОБХОДИМА ЗАКУПКА" in w for w in warnings)
 
                 if is_critical:
-                    # Critical error - show error dialog
+                                                        
                     msg_box = QMessageBox(self)
-                    msg_box.setWindowTitle("Ошибка создания заказа")
-                    msg_box.setText("Заказ не может быть полностью сформирован!")
-                    msg_box.setInformativeText("Критическая нехватка материалов:\n" + "\n".join(warnings))
-                    msg_box.setIcon(QMessageBox.Icon.Critical)
+                    msg_box.setWindowTitle("Предупреждение по материалам")
+                    msg_box.setText("Заказ создан, но требуется закупка материалов!")
+                    msg_box.setInformativeText("Есть предупреждения:\n" + "\n".join(warnings))
+                    msg_box.setIcon(QMessageBox.Icon.Warning)
                     msg_box.exec()
+                    self.navigate_to_plan_order_id = order_id
                 else:
-                    # Production tasks created - show tasks dialog
+                                                                  
                     tasks_dialog = OrderTasksDialog(self, order_id, warnings)
                     tasks_dialog.exec()
                     
-                    # Ask if user wants to navigate to plan
+                                                           
                     reply = QMessageBox.question(
                         self,
                         "Заказ создан",
@@ -321,7 +307,7 @@ class AddOrderDialog(QDialog):
             else:
                 Toast.success(self.parent(), "Успешно", f"Заказ №{order_id} создан!")
 
-            self.accept()  # Закрываем диалог
+            self.accept()                    
 
         except Exception as e:
             Toast.error(self, "Ошибка сохранения", str(e))

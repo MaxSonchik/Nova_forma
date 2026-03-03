@@ -15,7 +15,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from ui.widgets.custom_chart import CustomChart
-from ui.widgets.toast import Toast  # <--- Добавлен импорт
+from ui.widgets.toast import Toast                        
 
 
 class DetailStatsDialog(QDialog):
@@ -34,7 +34,7 @@ class DetailStatsDialog(QDialog):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Шапка
+               
         top = QHBoxLayout()
         info = QLabel(
             f"<h2>{self.metric_title}</h2>Период: {self.d_from} — {self.d_to}"
@@ -49,7 +49,7 @@ class DetailStatsDialog(QDialog):
         top.addWidget(btn_pdf)
         layout.addLayout(top)
 
-        # График
+                
         if self.data:
             self.chart = CustomChart(self.data, self.metric_title)
             layout.addWidget(self.chart)
@@ -67,22 +67,22 @@ class DetailStatsDialog(QDialog):
             return
 
         try:
-            # 1. Скриншот
+                         
             pixmap = self.chart.grab()
             img_path = "temp_chart.png"
             pixmap.save(img_path)
 
-            # 2. PDF
+                    
             c = canvas.Canvas(file_path, pagesize=A4)
             h = A4[1]
 
-            # Шрифт
+                   
             font_path = os.path.join("assets", "font.ttf")
             if os.path.exists(font_path):
                 pdfmetrics.registerFont(TTFont("RusFont", font_path))
                 c.setFont("RusFont", 14)
 
-            # Лого
+                  
             logo = os.path.join("assets", "logo.png")
             if os.path.exists(logo):
                 c.drawImage(logo, 50, h - 100, 60, 60, mask="auto")
@@ -98,7 +98,7 @@ class DetailStatsDialog(QDialog):
             c.save()
             os.remove(img_path)
 
-            # ИСПРАВЛЕНО: Используем Toast вместо QMessageBox
+                                                             
             Toast.success(
                 self, "Готово", f"Отчет сохранен:\n{os.path.basename(file_path)}"
             )

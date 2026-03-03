@@ -1,10 +1,10 @@
-import qtawesome as qta  # Обнови
+import qtawesome as qta          
 from PyQt6.QtCore import QDate
 from PyQt6.QtGui import QBrush, QColor, QTextCharFormat
 from PyQt6.QtWidgets import (
     QCalendarWidget,
     QFileDialog,
-    QFrame,  # Обнови
+    QFrame,          
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -27,7 +27,7 @@ class ScheduleTab(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Легенда (Описание цветов)
+                                   
         legend_layout = QHBoxLayout()
         legend_layout.addWidget(self.create_legend_item("#27AE60", "Рабочий"))
         legend_layout.addWidget(self.create_legend_item("#E74C3C", "Выходной"))
@@ -43,14 +43,14 @@ class ScheduleTab(QWidget):
         layout.addLayout(legend_layout)
         layout.addSpacing(10)
 
-        # Календарь
+                   
         self.calendar = QCalendarWidget()
         self.calendar.setGridVisible(True)
         self.calendar.setVerticalHeaderFormat(
             QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader
         )
 
-        # Стилизация календаря
+                              
         self.calendar.setStyleSheet(
             """
             QCalendarWidget QWidget { background-color: white; }
@@ -79,30 +79,30 @@ class ScheduleTab(QWidget):
         return container
 
     def load_schedule(self):
-        # Получаем график сотрудника
-        query = "SELECT дата, статус FROM график_работы WHERE id_сотрудника = %s"
+                                    
+        query = "SELECT * FROM sp_get_schedule(%s)"
         schedule = Database.fetch_all(query, (self.user_id,))
 
         for entry in schedule:
-            date_obj = entry["дата"]  # datetime.date
+            date_obj = entry["дата"]                 
             status = entry["статус"]
 
-            # Преобразуем в QDate
+                                 
             qdate = QDate(date_obj.year, date_obj.month, date_obj.day)
 
-            # Определяем цвет
+                             
             fmt = QTextCharFormat()
             if status == "рабочий":
-                fmt.setBackground(QBrush(QColor("#27AE60")))  # Зеленый
+                fmt.setBackground(QBrush(QColor("#27AE60")))           
                 fmt.setForeground(QBrush(QColor("white")))
             elif status == "выходной":
-                fmt.setBackground(QBrush(QColor("#E74C3C")))  # Красный
+                fmt.setBackground(QBrush(QColor("#E74C3C")))           
                 fmt.setForeground(QBrush(QColor("white")))
             elif status == "отпуск":
-                fmt.setBackground(QBrush(QColor("#3498DB")))  # Синий
+                fmt.setBackground(QBrush(QColor("#3498DB")))         
                 fmt.setForeground(QBrush(QColor("white")))
             elif status == "больничный":
-                fmt.setBackground(QBrush(QColor("#F1C40F")))  # Желтый
+                fmt.setBackground(QBrush(QColor("#F1C40F")))          
                 fmt.setForeground(QBrush(QColor("black")))
 
             self.calendar.setDateTextFormat(qdate, fmt)

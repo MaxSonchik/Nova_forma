@@ -27,7 +27,7 @@ from ui.widgets.warehouse_tab import WarehouseTab
 
 
 class MainWindow(QMainWindow):
-    # Сигнал для выхода из учетной записи
+                                         
     logoutSignal = pyqtSignal()
 
     def __init__(self, user_id, role, fio):
@@ -35,25 +35,25 @@ class MainWindow(QMainWindow):
         self.user_id = user_id
         self.fio = fio
 
-        # 1. НОРМАЛИЗАЦИЯ РОЛИ (Сразу при старте!)
-        # Приводим к нижнему регистру и убираем пробелы
+                                                  
+                                                       
         self.role = str(role).lower().strip()
 
-        # Отладка в консоль (чтобы видеть, что программа "поняла")
+                                                                  
         print(f"DEBUG: Инициализация окна для роли: '{self.role}' (User ID: {user_id})")
 
-        # Настройка окна
+                        
         self.setWindowTitle(f"Nova Forma CRM - {fio} ({self.role})")
         self.resize(1200, 800)
 
-        # Основной виджет и layout
+                                  
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         self.main_layout = QHBoxLayout(central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
-        # Инициализация UI
+                          
         self.setup_sidebar()
         self.setup_content_area()
         self.populate_menu_by_role()
@@ -67,17 +67,17 @@ class MainWindow(QMainWindow):
         self.sidebar_layout.setContentsMargins(0, 20, 0, 20)
         self.sidebar_layout.setSpacing(10)
 
-        # 1. Блок пользователя (Аватар + Имя)
+                                             
         user_layout = QVBoxLayout()
         user_layout.setContentsMargins(15, 0, 15, 20)
 
-        # Иконка зависит от роли
+                                
         icon_map = {
             "директор": "fa5s.user-tie",
             "менеджер": "fa5s.user-check",
             "сборщик": "fa5s.hard-hat",
         }
-        # Используем get, по умолчанию ставим просто user
+                                                         
         icon_name = icon_map.get(self.role, "fa5s.user")
 
         avatar_label = QLabel()
@@ -96,12 +96,12 @@ class MainWindow(QMainWindow):
 
         self.sidebar_layout.addLayout(user_layout)
 
-        # 2. Меню навигации (контейнер для кнопок)
+                                                  
         self.menu_layout = QVBoxLayout()
         self.sidebar_layout.addLayout(self.menu_layout)
-        self.sidebar_layout.addStretch()  # Растяжка
+        self.sidebar_layout.addStretch()            
 
-        # 3. Кнопка Выход
+                         
         logout_btn = QPushButton("Выход")
         logout_btn.setObjectName("LogoutButton")
         logout_btn.setIcon(qta.icon("fa5s.sign-out-alt", color="#E74C3C"))
@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
         """Добавляет кнопку в меню и страницу в стек"""
         btn = QPushButton(title)
         btn.setProperty("class", "NavButton")
-        btn.setIcon(qta.icon(icon_name, color="#BDC3C7"))  # Цвет иконки по умолчанию
+        btn.setIcon(qta.icon(icon_name, color="#BDC3C7"))                            
         btn.setCheckable(True)
         btn.setAutoExclusive(True)
 
@@ -155,25 +155,25 @@ class MainWindow(QMainWindow):
             self.add_menu_item("Номенклатура", "fa5s.boxes", NomenclatureTab())
             self.add_menu_item("Заготовки", "fa5s.puzzle-piece", ComponentsTab())
             self.add_menu_item("Закупки", "fa5s.shopping-cart", PurchasesTab())
-            self.add_menu_item("Склад", "fa5s.warehouse", WarehouseTab())
+            self.add_menu_item("Склад", "fa5s.warehouse", WarehouseTab(self.user_id))
             self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id))
-            self.add_menu_item("План работ", "fa5s.tasks", ProductionPlanningTab())
-            # self.add_menu_item("Производство", "fa5s.hammer", ProductionTab(self.user_id)) # Removed for Director
+            self.add_menu_item("План работ", "fa5s.tasks", ProductionPlanningTab(self.user_id))
             self.add_menu_item("График", "fa5s.calendar-alt", ManagerScheduleTab())
+            self.add_menu_item("Сотрудники", "fa5s.users-cog", EmployeesTab())
 
         elif self.role == "менеджер":
             self.add_menu_item("Заказы", "fa5s.file-invoice", OrdersTab(self.user_id))
-            self.add_menu_item("План работ", "fa5s.tasks", ProductionPlanningTab())
+            self.add_menu_item("План работ", "fa5s.tasks", ProductionPlanningTab(self.user_id))
             self.add_menu_item("Клиенты", "fa5s.users", ClientsTab())
             self.add_menu_item("Номенклатура", "fa5s.boxes", NomenclatureTab())
-            self.add_menu_item("Склад", "fa5s.warehouse", WarehouseTab())
+            self.add_menu_item("Склад", "fa5s.warehouse", WarehouseTab(self.user_id))
 
         elif self.role == "сборщик":
-            self.add_menu_item("Производство", "fa5s.hammer", ProductionTab(self.user_id))
+            self.add_menu_item("Производство", "fa5s.hammer", ProductionTab(self.user_id, self.role))
             self.add_menu_item("График", "fa5s.calendar-alt", ScheduleTab(self.user_id))
 
         else:
-            # Если роль не совпала, показываем ошибку в меню
+                                                            
             self.add_menu_item(
                 "Ошибка доступа",
                 "fa5s.exclamation-circle",
@@ -186,15 +186,15 @@ class MainWindow(QMainWindow):
 
     def switch_to_production_plan(self, order_id):
         """Переключение на вкладку План работ и фильтрация по заказу"""
-        # Find ProductionPlanningTab index
+                                          
         for i in range(self.stacked_widget.count()):
             widget = self.stacked_widget.widget(i)
             if isinstance(widget, ProductionPlanningTab):
                 self.stacked_widget.setCurrentIndex(i)
-                # Ensure the corresponding menu button is checked
+                                                                 
                 btn = self.menu_layout.itemAt(i).widget()
                 if btn: btn.setChecked(True)
                 
-                # Apply filter
+                              
                 widget.filter_by_order(order_id)
                 break

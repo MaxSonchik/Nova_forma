@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -33,32 +34,31 @@ class OrdersTab(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # --- ПАНЕЛЬ ФИЛЬТРОВ (Группировка) ---
+                                               
         filter_group = QGroupBox("Многокритериальный поиск")
         filter_layout = QHBoxLayout(filter_group)
 
-        # 1. Поиск по тексту
+                            
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Клиент или № заказа...")
         self.search_input.setFixedWidth(200)
         self.search_input.textChanged.connect(self.load_data)
 
-        # 2. Фильтр статусов (обновлен список)
+                                              
         self.status_filter = QComboBox()
         self.status_filter.addItems(
             [
                 "Все статусы",
                 "принят",
                 "в_работе",
-                "выполнен",
-                "отгружен",
                 "завершен",
+                "отгружен",
                 "ПРОСРОЧЕН",
             ]
         )
         self.status_filter.currentTextChanged.connect(self.load_data)
 
-        # 3. Фильтр дат (Период)
+                                
         date_label = QLabel("Период заказа:")
         date_label.setStyleSheet("color: #7F8C8D;")
 
@@ -66,7 +66,7 @@ class OrdersTab(QWidget):
         self.date_from.setCalendarPopup(True)
         self.date_from.setDate(
             QDate(2020, 1, 1)
-        )  # По умолчанию - с 2020 года
+        )                              
         self.date_from.dateChanged.connect(self.load_data)
 
         lbl_to = QLabel("-")
@@ -75,10 +75,10 @@ class OrdersTab(QWidget):
         self.date_to.setCalendarPopup(True)
         self.date_to.setDate(
             QDate.currentDate().addMonths(1)
-        )  # По умолчанию + месяц вперед
+        )                               
         self.date_to.dateChanged.connect(self.load_data)
 
-        # 4. Кнопки управления
+                              
         btn_refresh = QPushButton()
         btn_refresh.setIcon(qta.icon("fa5s.sync-alt"))
         btn_refresh.setToolTip("Обновить таблицу")
@@ -95,7 +95,7 @@ class OrdersTab(QWidget):
         self.btn_print.setFixedWidth(40)
         self.btn_print.clicked.connect(self.print_order)
 
-        # Добавляем всё в лайаут фильтров
+                                         
         filter_layout.addWidget(self.search_input)
         filter_layout.addWidget(self.status_filter)
         filter_layout.addSpacing(15)
@@ -110,7 +110,7 @@ class OrdersTab(QWidget):
 
         layout.addWidget(filter_group)
 
-        # --- ТАБЛИЦА ---
+                         
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(
@@ -126,7 +126,7 @@ class OrdersTab(QWidget):
 
         layout.addWidget(self.table)
 
-        # --- КНОПКИ СТАТУСА ---
+                                
         status_btn_layout = QHBoxLayout()
         self.btn_to_work = QPushButton("В работу")
         self.btn_to_work.setIcon(qta.icon("fa5s.play", color="#3498DB"))
@@ -134,7 +134,7 @@ class OrdersTab(QWidget):
 
         self.btn_done = QPushButton("Готово")
         self.btn_done.setIcon(qta.icon("fa5s.check", color="#27AE60"))
-        self.btn_done.clicked.connect(lambda: self.change_status("выполнен"))
+        self.btn_done.clicked.connect(lambda: self.change_status("завершен"))
 
         self.btn_ship = QPushButton("Отгрузить")
         self.btn_ship.setIcon(qta.icon("fa5s.truck", color="#9B59B6"))
@@ -142,7 +142,7 @@ class OrdersTab(QWidget):
 
         self.btn_defect = QPushButton("Зафиксировать брак")
         self.btn_defect.setIcon(qta.icon("fa5s.exclamation-triangle", color="#E74C3C"))
-        self.btn_defect.clicked.connect(self.report_defect)
+        self.btn_defect.clicked.connect(self.report_defect_simple)
 
         self.btn_cancel = QPushButton("Отменить")
         self.btn_cancel.setIcon(qta.icon("fa5s.ban", color="#7F8C8D"))
@@ -155,24 +155,30 @@ class OrdersTab(QWidget):
         status_btn_layout.addWidget(self.btn_defect)
         status_btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(status_btn_layout)
+        
+                                                    
+        self.table.itemSelectionChanged.connect(self.update_buttons)
+        
+                       
+        self.update_buttons()
 
     def load_data(self):
         """Загрузка данных через Хранимую Процедуру"""
         try:
             text_search = self.search_input.text().strip()
             if not text_search:
-                text_search = None # Ensure it's None if empty
+                text_search = None                            
 
             status = self.status_filter.currentText()
-            # If "Все статусы" is selected, pass None to the stored procedure
+                                                                             
             if status == "Все статусы":
                 status = None
 
             d_from = self.date_from.date().toString("yyyy-MM-dd")
             d_to = self.date_to.date().toString("yyyy-MM-dd")
 
-            # Вызываем функцию поиска (возвращает таблицу)
-            # Параметры: p_manager_id, p_search_text, p_status, p_date_from, p_date_to
+                                                          
+                                                                                      
             query = "SELECT * FROM sp_search_orders(%s, %s, %s, %s, %s)"
             params = (self.current_user_id, text_search, status, d_from, d_to)
 
@@ -198,27 +204,27 @@ class OrdersTab(QWidget):
                 order["состояние_сроков"],
             ]
 
-            # --- ЛОГИКА ЦВЕТОВ ---
+                                   
             row_color = None
             st = order["статус_заказа"]
             cond = order["состояние_сроков"]
 
             if cond == "ПРОСРОЧЕН":
-                row_color = QColor("#FFCDD2")  # Красный (Просрочено)
+                row_color = QColor("#FFCDD2")                        
             elif st == "в_работе":
-                row_color = QColor("#FFF9C4")  # Желтый (В работе) - NEW!
-            elif st == "выполнен":
-                row_color = QColor("#C8E6C9")  # Зеленый (Выполнен)
-            elif st == "отгружен" or st == "завершен":
-                row_color = QColor("#F5F5F5")  # Серый (Архив)
-                # Делаем текст серым для архива
+                row_color = QColor("#FFF9C4")                            
+            elif st == "завершен":
+                row_color = QColor("#C8E6C9")                      
+            elif st == "отгружен":
+                row_color = QColor("#F5F5F5")                 
+                                               
 
             for col_idx, text in enumerate(items):
                 item = QTableWidgetItem(text)
                 if row_color:
                     item.setBackground(row_color)
 
-                # Для архива серый текст
+                                        
                 if st in ["отгружен", "завершен"]:
                     item.setForeground(QColor("#9E9E9E"))
 
@@ -227,31 +233,31 @@ class OrdersTab(QWidget):
     def open_add_order_dialog(self):
         from ui.dialogs.add_order_dialog import AddOrderDialog
         
-        # Получаем ID текущего менеджера (пользователя)
+                                                       
         dialog = AddOrderDialog(self, self.current_user_id)
         if dialog.exec():
             self.load_data()
             
-            # Check for navigation request
+                                          
             if dialog.navigate_to_plan_order_id:
-                # Access main window
+                                    
                 main = self.window()
-                # Duck typing check or import verification
+                                                          
                 if hasattr(main, "switch_to_production_plan"):
-                    main.switch_to_production_plan(dialog.navigate_to_plan_order_id)  # Обновляем таблицу заказов
+                    main.switch_to_production_plan(dialog.navigate_to_plan_order_id)                             
 
     def print_order(self):
-        # 1. Получаем ID выделенного заказа
+                                           
         selected_items = self.table.selectedItems()
         if not selected_items:
             Toast.warning(self, "Внимание", "Выберите заказ для печати")
             return
 
-        # ID у нас в 0-м столбце
+                                
         row = selected_items[0].row()
         order_id = self.table.item(row, 0).text()
 
-        # 2. Спрашиваем куда сохранить
+                                      
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Сохранить отчет", f"Заказ_{order_id}.pdf", "PDF Files (*.pdf)"
         )
@@ -259,7 +265,7 @@ class OrdersTab(QWidget):
         if not file_path:
             return
 
-        # 3. Генерация
+                      
         try:
             generator = PDFGenerator(file_path)
             success, msg = generator.generate_order_blank(order_id)
@@ -302,6 +308,17 @@ class OrdersTab(QWidget):
         row = selected_items[0].row()
         order_id = int(self.table.item(row, 0).text())
 
+        # Confirmation for cancel
+        if new_status == "отменен":
+            confirm = QMessageBox.question(
+                self, "Подтверждение отмены",
+                f"Отменить заказ №{order_id}?\n"
+                "Все материалы и заготовки будут возвращены на склад.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+
         result = Database.call_procedure("sp_update_order_status", [order_id, new_status])
         status = result.get("status")
         msg = result.get("message", "")
@@ -311,6 +328,58 @@ class OrdersTab(QWidget):
             self.load_data()
         else:
             Toast.error(self, "Ошибка", msg)
+
+    def update_buttons(self):
+        selected = self.table.selectedItems()
+        
+                              
+        self.btn_to_work.setEnabled(False)
+        self.btn_done.setEnabled(False)
+        self.btn_ship.setEnabled(False)
+        self.btn_defect.setEnabled(False)
+        self.btn_cancel.setEnabled(False)
+        
+        if not selected:
+            return
+            
+        row = selected[0].row()
+                                                   
+                                                                                        
+        status_item = self.table.item(row, 4)
+        if not status_item:
+            return
+            
+        status = status_item.text()
+        
+                               
+        if status == "принят":
+            self.btn_to_work.setEnabled(True)
+            self.btn_cancel.setEnabled(True)
+        elif status == "в_работе":
+            self.btn_done.setEnabled(True)
+            self.btn_cancel.setEnabled(True)
+        elif status == "завершен":
+            self.btn_ship.setEnabled(True)
+            self.btn_defect.setEnabled(True)                                
+        elif status == "отгружен":
+                                         
+             pass
+        elif status == "отменен":
+             pass
+
+    def report_defect_simple(self):
+        """Simplied defect reporting: Change status back to 'в_работе'"""
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            return
+            
+        row = selected_items[0].row()
+        order_id = int(self.table.item(row, 0).text())
+        
+                                                      
+                                                                                                 
+        self.change_status("в_работе")
+                                                                                              
 
     def report_defect(self):
         """Зафиксировать брак для выбранного заказа"""
@@ -324,20 +393,14 @@ class OrdersTab(QWidget):
         row = selected_items[0].row()
         order_id = int(self.table.item(row, 0).text())
         
-        # Get order items
-        order_items = Database.fetch_all(
-            "SELECT sz.id_изделия, i.наименование, sz.количество_изделий "
-            "FROM состав_заказа sz "
-            "JOIN изделия i ON sz.id_изделия = i.id_изделия "
-            "WHERE sz.id_заказа = %s",
-            (order_id,)
-        )
+                         
+        order_items = Database.fetch_all("SELECT * FROM sp_get_order_items(%s)", (order_id,))
         
         if not order_items:
             Toast.warning(self, "Внимание", "В заказе нет позиций")
             return
         
-        # Dialog to select product and qty
+                                          
         dialog = QDialog(self)
         dialog.setWindowTitle("Зафиксировать брак")
         dialog.setFixedSize(400, 250)

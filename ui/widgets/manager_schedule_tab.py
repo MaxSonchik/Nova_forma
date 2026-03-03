@@ -42,7 +42,7 @@ class ManagerScheduleTab(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # --- 1. ПАНЕЛЬ ВЫБОРА ---
+                                  
         top_layout = QHBoxLayout()
 
         self.combo_emp = QComboBox()
@@ -67,13 +67,13 @@ class ManagerScheduleTab(QWidget):
 
         layout.addLayout(top_layout)
 
-        # --- 2. ТАБЛИЦА-КАЛЕНДАРЬ ---
+                                      
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setRowCount(6)
         self.table.setHorizontalHeaderLabels(["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"])
 
-        # Стили
+               
         self.table.setStyleSheet(
             """
             QTableWidget {
@@ -105,7 +105,7 @@ class ManagerScheduleTab(QWidget):
 
         layout.addWidget(self.table)
 
-        # --- 3. КНОПКИ СТАТУСОВ ---
+                                    
         ctrl_group = QGroupBox("Применить к выделенным дням")
         btns_layout = QHBoxLayout(ctrl_group)
 
@@ -132,17 +132,15 @@ class ManagerScheduleTab(QWidget):
             QPushButton:hover {{ background-color: #ECF0F1; }}
         """
         )
-        # Привязываем метод apply_status_to_selection
+                                                     
         btn.clicked.connect(lambda: self.apply_status_to_selection(status_code, text))
         return btn
 
     def load_employees(self):
         self.combo_emp.clear()
-        emps = Database.fetch_all(
-            "SELECT id_сотрудника, фио, должность FROM сотрудники ORDER BY фио"
-        )
-        for e in emps:
-            self.combo_emp.addItem(f"{e['фио']} ({e['должность']})", e["id_сотрудника"])
+        employees = Database.fetch_all("SELECT * FROM sp_get_workers()")
+        for e in employees:
+            self.combo_emp.addItem(e["фио"], e["id_сотрудника"])
         self.combo_emp.setCurrentIndex(-1)
 
     def generate_calendar_grid(self):
@@ -194,10 +192,10 @@ class ManagerScheduleTab(QWidget):
             return
 
         emp_id = self.combo_emp.itemData(idx)
-        query = "SELECT дата, статус FROM график_работы WHERE id_сотрудника = %s"
+        query = "SELECT дата, статус FROM График WHERE id_сотрудника = %s"
         schedule = Database.fetch_all(query, (emp_id,))
 
-        # Словарь { 'yyyy-MM-dd': 'статус' }
+                                            
         sched_map = {str(row["дата"]): row["статус"] for row in schedule}
 
         for row in range(6):
@@ -228,10 +226,10 @@ class ManagerScheduleTab(QWidget):
                 item.setBackground(color)
                 item.setForeground(fg_color)
 
-    # --- ВОТ ЭТОТ МЕТОД, КОТОРЫЙ ТЕРЯЛСЯ ---
+                                             
     def apply_status_to_selection(self, status_code, status_name):
         """Применяет статус ко всем выделенным ячейкам"""
-        # 1. Проверка сотрудника
+                                
         idx = self.combo_emp.currentIndex()
         if idx == -1:
             Toast.warning(self, "Внимание", "Сначала выберите сотрудника!")
@@ -239,7 +237,7 @@ class ManagerScheduleTab(QWidget):
 
         emp_id = self.combo_emp.itemData(idx)
 
-        # 2. Проверка выделения
+                               
         selected_items = self.table.selectedItems()
         if not selected_items:
             Toast.warning(self, "Внимание", "Выделите дни в календаре!")
@@ -253,7 +251,7 @@ class ManagerScheduleTab(QWidget):
                     continue
 
                 Database.execute(
-                    "CALL sp_установить_статус_дня(%s, %s, %s)",
+                    "CALL sp_set_day_status(%s, %s, %s)",
                     (emp_id, date_str, status_code),
                 )
                 count += 1

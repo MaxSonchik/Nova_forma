@@ -1,19 +1,19 @@
 DROP TABLE IF EXISTS логи_операций CASCADE;
-DROP TABLE IF EXISTS план_заготовок CASCADE;
-DROP TABLE IF EXISTS состав_закупки CASCADE;
-DROP TABLE IF EXISTS закупки_материалов CASCADE;
-DROP TABLE IF EXISTS график_работы CASCADE;
-DROP TABLE IF EXISTS состав_изделия CASCADE;
+DROP TABLE IF EXISTS ПланЗаготовок CASCADE;
+DROP TABLE IF EXISTS СоставЗакупки CASCADE;
+DROP TABLE IF EXISTS Закупка CASCADE;
+DROP TABLE IF EXISTS График CASCADE;
+DROP TABLE IF EXISTS СоставИзделия CASCADE;
 DROP TABLE IF EXISTS расход_материалов CASCADE;
-DROP TABLE IF EXISTS состав_заказа CASCADE;
-DROP TABLE IF EXISTS заказы CASCADE;
-DROP TABLE IF EXISTS изделия CASCADE;
-DROP TABLE IF EXISTS заготовки CASCADE;
-DROP TABLE IF EXISTS материалы CASCADE;
-DROP TABLE IF EXISTS клиенты CASCADE;
-DROP TABLE IF EXISTS сотрудники CASCADE;
+DROP TABLE IF EXISTS СоставЗаказа CASCADE;
+DROP TABLE IF EXISTS Заказ CASCADE;
+DROP TABLE IF EXISTS Изделие CASCADE;
+DROP TABLE IF EXISTS Заготовка CASCADE;
+DROP TABLE IF EXISTS Материал CASCADE;
+DROP TABLE IF EXISTS Клиент CASCADE;
+DROP TABLE IF EXISTS Сотрудник CASCADE;
 
-CREATE TABLE сотрудники (
+CREATE TABLE Сотрудник (
     id_сотрудника SERIAL PRIMARY KEY,
     фио VARCHAR(100) NOT NULL,
     номер_телефона VARCHAR(20) UNIQUE NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE сотрудники (
 );
 
 
-CREATE TABLE клиенты (
+CREATE TABLE Клиент (
     id_клиента SERIAL PRIMARY KEY,
     фио VARCHAR(100) NOT NULL,
     инн VARCHAR(12),
@@ -37,7 +37,7 @@ CREATE TABLE клиенты (
 );
 
 
-CREATE TABLE материалы (
+CREATE TABLE Материал (
     id_материала SERIAL PRIMARY KEY,
     артикул_материала VARCHAR(50) UNIQUE NOT NULL,
     наименование VARCHAR(100) NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE материалы (
 );
 
 
-CREATE TABLE заготовки (
+CREATE TABLE Заготовка (
     id_заготовки SERIAL PRIMARY KEY,
     артикул_заготовки VARCHAR(50) UNIQUE NOT NULL,
     наименование VARCHAR(100) NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE заготовки (
 );
 
 
-CREATE TABLE изделия (
+CREATE TABLE Изделие (
     id_изделия SERIAL PRIMARY KEY,
     артикул_изделия VARCHAR(50) UNIQUE NOT NULL,
     наименование VARCHAR(100) NOT NULL,
@@ -69,26 +69,26 @@ CREATE TABLE изделия (
 
 CREATE TABLE расход_материалов (
     id_расход SERIAL PRIMARY KEY,
-    id_заготовки INTEGER REFERENCES заготовки(id_заготовки) ON DELETE CASCADE,
-    id_материала INTEGER REFERENCES материалы(id_материала) ON DELETE RESTRICT,
+    id_заготовки INTEGER REFERENCES Заготовка(id_заготовки) ON DELETE CASCADE,
+    id_материала INTEGER REFERENCES Материал(id_материала) ON DELETE RESTRICT,
     количество_материала INTEGER CHECK (количество_материала > 0),
-    UNIQUE(id_заготовки, id_материала) -- защита от дублей
+    UNIQUE(id_заготовки, id_материала) 
 );
 
 
-CREATE TABLE состав_изделия (
+CREATE TABLE СоставИзделия (
     id_состав_изделия SERIAL PRIMARY KEY,
-    id_изделия INTEGER REFERENCES изделия(id_изделия) ON DELETE CASCADE,
-    id_заготовки INTEGER REFERENCES заготовки(id_заготовки) ON DELETE RESTRICT,
+    id_изделия INTEGER REFERENCES Изделие(id_изделия) ON DELETE CASCADE,
+    id_заготовки INTEGER REFERENCES Заготовка(id_заготовки) ON DELETE RESTRICT,
     количество_заготовок INTEGER CHECK (количество_заготовок > 0),
     UNIQUE(id_изделия, id_заготовки)
 );
 
 
-CREATE TABLE заказы (
+CREATE TABLE Заказ (
     id_заказа SERIAL PRIMARY KEY,
-    id_клиента INTEGER REFERENCES клиенты(id_клиента) ON DELETE RESTRICT,
-    id_менеджера INTEGER REFERENCES сотрудники(id_сотрудника) ON DELETE SET NULL,
+    id_клиента INTEGER REFERENCES Клиент(id_клиента) ON DELETE RESTRICT,
+    id_менеджера INTEGER REFERENCES Сотрудник(id_сотрудника) ON DELETE SET NULL,
     дата_заказа DATE DEFAULT CURRENT_DATE,
     дата_готовности DATE,
     статус VARCHAR(20) DEFAULT 'принят' CHECK (статус IN ('принят', 'в_работе', 'в_обработке', 'выполнен', 'отменен', 'отгружен', 'завершен')),
@@ -98,25 +98,25 @@ CREATE TABLE заказы (
 );
 
 
-CREATE TABLE состав_заказа (
+CREATE TABLE СоставЗаказа (
     id_состав_заказа SERIAL PRIMARY KEY,
-    id_заказа INTEGER REFERENCES заказы(id_заказа) ON DELETE CASCADE,
-    id_изделия INTEGER REFERENCES изделия(id_изделия) ON DELETE RESTRICT,
+    id_заказа INTEGER REFERENCES Заказ(id_заказа) ON DELETE CASCADE,
+    id_изделия INTEGER REFERENCES Изделие(id_изделия) ON DELETE RESTRICT,
     количество_изделий INTEGER CHECK (количество_изделий > 0),
     цена_фиксированная NUMERIC(10, 2)
 );
 
 
-CREATE TABLE график_работы (
+CREATE TABLE График (
     id_графика SERIAL PRIMARY KEY,
-    id_сотрудника INTEGER REFERENCES сотрудники(id_сотрудника) ON DELETE CASCADE,
+    id_сотрудника INTEGER REFERENCES Сотрудник(id_сотрудника) ON DELETE CASCADE,
     дата DATE NOT NULL,
     статус VARCHAR(20) CHECK (статус IN ('рабочий', 'выходной', 'отпуск', 'больничный')),
     UNIQUE(id_сотрудника, дата)
 );
 
 
-CREATE TABLE закупки_материалов (
+CREATE TABLE Закупка (
     id_закупки SERIAL PRIMARY KEY,
     дата_закупки DATE DEFAULT CURRENT_DATE,
     поставщик VARCHAR(100),
@@ -124,19 +124,19 @@ CREATE TABLE закупки_материалов (
 );
 
 
-CREATE TABLE состав_закупки (
+CREATE TABLE СоставЗакупки (
     id_состав_закупки SERIAL PRIMARY KEY,
-    id_закупки INTEGER REFERENCES закупки_материалов(id_закупки) ON DELETE CASCADE,
-    id_материала INTEGER REFERENCES материалы(id_материала) ON DELETE CASCADE,
+    id_закупки INTEGER REFERENCES Закупка(id_закупки) ON DELETE CASCADE,
+    id_материала INTEGER REFERENCES Материал(id_материала) ON DELETE CASCADE,
     количество INTEGER CHECK (количество > 0),
     цена_закупки NUMERIC(10, 2)
 );
 
-CREATE TABLE план_заготовок (
+CREATE TABLE ПланЗаготовок (
     id_плана SERIAL PRIMARY KEY,
-    id_заказа INTEGER REFERENCES заказы(id_заказа) ON DELETE CASCADE,
-    id_заготовки INTEGER REFERENCES заготовки(id_заготовки),
-    id_сборщика INTEGER REFERENCES сотрудники(id_сотрудника),
+    id_заказа INTEGER REFERENCES Заказ(id_заказа) ON DELETE CASCADE,
+    id_заготовки INTEGER REFERENCES Заготовка(id_заготовки),
+    id_сборщика INTEGER REFERENCES Сотрудник(id_сотрудника),
     плановое_количество INTEGER NOT NULL,
     фактическое_количество INTEGER DEFAULT 0,
     дата_план DATE NOT NULL,

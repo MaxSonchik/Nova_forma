@@ -26,7 +26,7 @@ class ClientsTab(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # --- ПАНЕЛЬ ИНСТРУМЕНТОВ ---
+                                     
         toolbar = QHBoxLayout()
 
         self.search_input = QLineEdit()
@@ -59,61 +59,53 @@ class ClientsTab(QWidget):
 
         layout.addLayout(toolbar)
 
-        # --- ТАБЛИЦА ---
+                         
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["ID", "ФИО", "Телефон", "ИНН", "Адрес"])
 
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # ФИО тянется
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Адрес тянется
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)               
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)                 
 
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(
             QTableWidget.SelectionMode.SingleSelection
-        )  # Только одна строка
+        )                      
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
         layout.addWidget(self.table)
 
     def load_data(self):
-        search_text = self.search_input.text().strip().lower()
-
-        query = "SELECT * FROM клиенты WHERE 1=1"
-        params = []
-
-        if search_text:
-            query += " AND (LOWER(фио) LIKE %s OR номер_телефона LIKE %s)"
-            like_str = f"%{search_text}%"
-            params.append(like_str)
-            params.append(like_str)
-
-        query += " ORDER BY id_клиента DESC"
-
-        clients = Database.fetch_all(query, params)
+        search_text = self.search_input.text().strip()
+                                            
+                                                 
+        search_pattern = f"%{search_text}%"
+        
+        clients = Database.fetch_all("SELECT * FROM sp_search_clients(%s)", (search_pattern,))
         self.populate_table(clients)
 
     def populate_table(self, clients):
         self.table.setRowCount(0)
-        # Сохраняем полные данные о клиентах, чтобы потом брать их для редактирования
+                                                                                     
         self.current_clients_data = clients
 
         for row_idx, client in enumerate(clients):
             self.table.insertRow(row_idx)
 
-            # ID
+                
             self.table.setItem(row_idx, 0, QTableWidgetItem(str(client["id_клиента"])))
-            # ФИО
+                 
             self.table.setItem(row_idx, 1, QTableWidgetItem(client["фио"]))
-            # Телефон
+                     
             self.table.setItem(row_idx, 2, QTableWidgetItem(client["номер_телефона"]))
-            # ИНН
+                 
             self.table.setItem(row_idx, 3, QTableWidgetItem(client["инн"] or "—"))
-            # Адрес
+                   
             self.table.setItem(row_idx, 4, QTableWidgetItem(client["адрес"] or "—"))
 
-            # Сохраняем ID строки в UserRole элемента (для надежности)
+                                                                      
             self.table.item(row_idx, 0).setData(Qt.ItemDataRole.UserRole, client)
 
     def get_selected_client(self):
@@ -121,7 +113,7 @@ class ClientsTab(QWidget):
         row = self.table.currentRow()
         if row == -1:
             return None
-        # Данные спрятаны в первой ячейке
+                                         
         return self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
 
     def add_client(self):
@@ -145,9 +137,9 @@ class ClientsTab(QWidget):
             Toast.warning(self, "Внимание", "Выберите клиента для удаления")
             return
 
-        # Подтверждение (здесь можно использовать QMessageBox для критического вопроса)
-        # Но по ТЗ "тосты". Однако удаление без подтверждения опасно.
-        # Сделаем стандартный вопрос, а результат покажем Тостом.
+                                                                                       
+                                                                     
+                                                                 
         reply = QMessageBox.question(
             self,
             "Удаление",
@@ -156,19 +148,12 @@ class ClientsTab(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            query = "DELETE FROM клиенты WHERE id_клиента = %s"
-            success, error = Database.execute(query, (client["id_клиента"],))
-
-            if success:
-                Toast.success(self, "Удалено", "Клиент успешно удален")
+                                               
+            res = Database.fetch_one("SELECT * FROM sp_delete_client(%s)", (client["id_клиента"],))
+            
+            if res and res.get("status") == "OK":
+                Toast.success(self, "Удалено", res["message"])
                 self.load_data()
             else:
-                # Скорее всего Foreign Key Violation
-                if "update or delete on table" in error.lower():
-                    Toast.error(
-                        self,
-                        "Невозможно удалить",
-                        "У этого клиента есть заказы!\nСначала удалите заказы.",
-                    )
-                else:
-                    Toast.error(self, "Ошибка БД", error)
+                msg = res["message"] if res else "Unknown error"
+                Toast.error(self, "Ошибка БД", msg)

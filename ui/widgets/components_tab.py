@@ -31,12 +31,12 @@ class ComponentsTab(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Header
-        header = QLabel("Заготовки и их материалы")
+                
+        header = QLabel("Заготовки и их Материал")
         header.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
         layout.addWidget(header)
 
-        # Toolbar
+                 
         toolbar = QHBoxLayout()
         btn_refresh = QPushButton("Обновить")
         btn_refresh.setIcon(qta.icon("fa5s.sync-alt"))
@@ -46,12 +46,17 @@ class ComponentsTab(QWidget):
         btn_add.setIcon(qta.icon("fa5s.plus", color="#27AE60"))
         btn_add.clicked.connect(self.add_component)
         
+        btn_delete = QPushButton("Удалить заготовку")
+        btn_delete.setIcon(qta.icon("fa5s.trash", color="#E74C3C"))
+        btn_delete.clicked.connect(self.delete_component)
+        
         toolbar.addStretch()
         toolbar.addWidget(btn_refresh)
         toolbar.addWidget(btn_add)
+        toolbar.addWidget(btn_delete)
         layout.addLayout(toolbar)
 
-        # Table
+               
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["ID", "Наименование", "На складе"])
@@ -62,8 +67,8 @@ class ComponentsTab(QWidget):
         self.table.doubleClicked.connect(self.edit_component)
         layout.addWidget(self.table)
 
-        # Materials panel (below table)
-        self.materials_label = QLabel("Материалы для заготовки:")
+                                       
+        self.materials_label = QLabel("Материалы для Заготовка:")
         self.materials_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(self.materials_label)
 
@@ -76,7 +81,7 @@ class ComponentsTab(QWidget):
         self.materials_table.setMaximumHeight(150)
         layout.addWidget(self.materials_table)
 
-        # Buttons
+                 
         btn_layout = QHBoxLayout()
         btn_materials = QPushButton("Управление материалами")
         btn_materials.setIcon(qta.icon("fa5s.cogs"))
@@ -144,6 +149,32 @@ class ComponentsTab(QWidget):
             else:
                 Toast.error(self, "Ошибка", result.get("message", "Неизвестная ошибка"))
 
+    def delete_component(self):
+        component_id = self.get_selected_id()
+        if not component_id:
+            Toast.warning(self, "Внимание", "Выберите заготовку для удаления")
+            return
+
+        row = self.table.selectedItems()[0].row()
+        component_name = self.table.item(row, 1).text()
+
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            f"ВНИМАНИЕ: Это запустит процесс каскадного удаления связанных с заготовкой данных!\n\nВы действительно хотите безвозвратно удалить заготовку '{component_name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            result = Database.call_procedure("sp_delete_component", [component_id])
+            if result.get("status") == "OK":
+                Toast.success(self, "Удалено", result.get("message"))
+                self.load_data()
+                self.materials_table.setRowCount(0)
+            else:
+                Toast.error(self, "Ошибка удаления", result.get("message", "Неизвестная ошибка"))
+
     def manage_materials(self):
         component_id = self.get_selected_id()
         if not component_id:
@@ -159,7 +190,7 @@ class ComponentsTab(QWidget):
 
 
 class ComponentMaterialsDialog(QDialog):
-    """Диалог управления материалами заготовки"""
+    """Диалог управления материалами Заготовка"""
     def __init__(self, parent, component_id, component_name):
         super().__init__(parent)
         self.component_id = component_id
@@ -168,7 +199,7 @@ class ComponentMaterialsDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # Table
+               
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["ID", "Материал", "Количество"])
@@ -178,7 +209,7 @@ class ComponentMaterialsDialog(QDialog):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         layout.addWidget(self.table)
 
-        # Buttons
+                 
         btn_layout = QHBoxLayout()
 
         btn_add = QPushButton("Добавить")
@@ -224,26 +255,26 @@ class ComponentMaterialsDialog(QDialog):
         return int(self.table.item(row, 0).text())
 
     def add_material(self):
-        # Get all materials from DB
+                                   
         all_materials = Database.fetch_all("SELECT * FROM sp_get_all_materials()")
         if not all_materials:
             Toast.warning(self, "Внимание", "Нет доступных материалов")
             return
 
-        # Selection dialog
+                          
         dialog = QDialog(self)
         dialog.setWindowTitle("Добавить материал")
         dialog.setFixedSize(450, 280)
         dlg_layout = QVBoxLayout(dialog)
 
-        # Material selection
+                            
         combo = QComboBox()
         for m in all_materials:
             combo.addItem(m["наименование"], m["id_материала"])
         dlg_layout.addWidget(QLabel("Выберите материал:"))
         dlg_layout.addWidget(combo)
 
-        # Or enter new name
+                           
         dlg_layout.addWidget(QLabel("Или введите новый (оставьте пустым для выбора):"))
         new_name_input = QLineEdit()
         new_name_input.setPlaceholderText("Название нового материала")
@@ -265,7 +296,7 @@ class ComponentMaterialsDialog(QDialog):
         """)
         dlg_layout.addWidget(new_name_input)
 
-        # Quantity
+                  
         spin = QSpinBox()
         spin.setRange(1, 1000)
         spin.setValue(1)
@@ -281,17 +312,18 @@ class ComponentMaterialsDialog(QDialog):
             qty = spin.value()
 
             if new_name:
-                # Create new material first (generate article number)
+                                                                     
                 import time
                 article = f"MAT-{int(time.time()) % 100000}"
-                res = Database.insert_returning(
-                    "INSERT INTO материалы (артикул_материала, наименование, количество_на_складе) VALUES (%s, %s, 0) RETURNING id_материала",
-                    (article, new_name)
+                                                               
+                res = Database.call_procedure(
+                    "sp_create_material",
+                    [article, new_name, 0]
                 )
-                if res:
+                if res.get("status") == "OK":
                     material_id = res["id_материала"]
                 else:
-                    Toast.error(self, "Ошибка", "Не удалось создать материал")
+                    Toast.error(self, "Ошибка", res.get("message", "Не удалось создать материал"))
                     return
             else:
                 material_id = combo.currentData()
@@ -327,7 +359,7 @@ class ComponentMaterialsDialog(QDialog):
             Toast.warning(self, "Внимание", "Выберите материал")
             return
 
-        reply = QMessageBox.question(self, "Подтверждение", "Удалить материал из заготовки?")
+        reply = QMessageBox.question(self, "Подтверждение", "Удалить материал из Заготовка?")
         if reply == QMessageBox.StandardButton.Yes:
             result = Database.call_procedure("sp_delete_component_material", [self.component_id, material_id])
             if result.get("status") == "OK":

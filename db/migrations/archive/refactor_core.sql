@@ -1,6 +1,6 @@
--- Enable pgcrypto
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
--- 1. AUTH
+
 DROP FUNCTION IF EXISTS sp_login(VARCHAR, VARCHAR);
 CREATE OR REPLACE FUNCTION sp_login(p_login VARCHAR, p_password VARCHAR) RETURNS TABLE (
         status VARCHAR,
@@ -15,7 +15,7 @@ SELECT id_сотрудника,
     password_hash,
     должность,
     фио INTO rec
-FROM сотрудники
+FROM Сотрудник
 WHERE login = p_login;
 IF NOT FOUND THEN status := 'ERROR';
 message := 'Пользователь не найден';
@@ -40,7 +40,7 @@ message := 'Ошибка БД: ' || SQLERRM;
 RETURN NEXT;
 END;
 $$;
--- 2. ORDERS SEARCH
+
 DROP FUNCTION IF EXISTS sp_search_orders(INTEGER, VARCHAR, VARCHAR, DATE, DATE);
 CREATE OR REPLACE FUNCTION sp_search_orders(
         p_manager_id INTEGER,
@@ -96,7 +96,7 @@ WHERE (
 ORDER BY z.id_заказа DESC;
 END;
 $$;
--- 3. CREATE ORDER
+
 DROP FUNCTION IF EXISTS sp_create_order(INTEGER, INTEGER, DATE);
 CREATE OR REPLACE FUNCTION sp_create_order(
         p_client_id INTEGER,
@@ -109,7 +109,7 @@ CREATE OR REPLACE FUNCTION sp_create_order(
     ) LANGUAGE plpgsql AS $$
 DECLARE v_id INTEGER;
 BEGIN
-INSERT INTO заказы (
+INSERT INTO Заказ (
         id_клиента,
         id_менеджера,
         дата_готовности,
@@ -133,7 +133,7 @@ new_order_id := NULL;
 RETURN NEXT;
 END;
 $$;
--- 4. ADD ITEM
+
 DROP FUNCTION IF EXISTS sp_add_order_item(INTEGER, INTEGER, INTEGER);
 DROP FUNCTION IF EXISTS sp_добавить_изделие_в_заказ(INTEGER, INTEGER, INTEGER);
 CREATE OR REPLACE FUNCTION sp_add_order_item(
@@ -150,9 +150,9 @@ BEGIN
 SELECT стоимость,
     количество_на_складе INTO v_price,
     v_stock
-FROM изделия
+FROM Изделие
 WHERE id_изделия = p_product_id;
-INSERT INTO состав_заказа (
+INSERT INTO СоставЗаказа (
         id_заказа,
         id_изделия,
         количество_изделий,
@@ -160,26 +160,26 @@ INSERT INTO состав_заказа (
     )
 VALUES (p_order_id, p_product_id, p_qty, v_price);
 SELECT дата_готовности INTO v_date_ready
-FROM заказы
+FROM Заказ
 WHERE id_заказа = p_order_id;
 IF v_stock >= p_qty THEN
-UPDATE изделия
+UPDATE Изделие
 SET количество_на_складе = количество_на_складе - p_qty
 WHERE id_изделия = p_product_id;
 status := 'OK';
 message := 'Изделия зарезервированы со склада.';
 ELSE v_missing := p_qty - v_stock;
 IF v_stock > 0 THEN
-UPDATE изделия
+UPDATE Изделие
 SET количество_на_складе = 0
 WHERE id_изделия = p_product_id;
 END IF;
 FOR rec IN
 SELECT id_заготовки,
     количество_заготовок
-FROM состав_изделия
+FROM СоставИзделия
 WHERE id_изделия = p_product_id LOOP
-INSERT INTO план_заготовок (
+INSERT INTO ПланЗаготовок (
         id_заказа,
         id_заготовки,
         плановое_количество,
@@ -204,7 +204,7 @@ message := 'Ошибка добавления позиции: ' || SQLERRM;
 RETURN NEXT;
 END;
 $$;
--- 5. SAVE CLIENT
+
 DROP FUNCTION IF EXISTS sp_save_client(INTEGER, VARCHAR, VARCHAR, INTEGER, VARCHAR);
 CREATE OR REPLACE FUNCTION sp_save_client(
         p_id_client INTEGER,
@@ -213,7 +213,7 @@ CREATE OR REPLACE FUNCTION sp_save_client(
         p_inn INTEGER,
         p_address VARCHAR
     ) RETURNS TABLE (status VARCHAR, message VARCHAR) LANGUAGE plpgsql AS $$ BEGIN IF p_id_client IS NOT NULL THEN
-UPDATE клиенты
+UPDATE Клиент
 SET фио = p_fio,
     номер_телефона = p_phone,
     инн = p_inn,
@@ -221,7 +221,7 @@ SET фио = p_fio,
 WHERE id_клиента = p_id_client;
 message := 'Данные клиента обновлены!';
 ELSE
-INSERT INTO клиенты (фио, номер_телефона, инн, адрес)
+INSERT INTO Клиент (фио, номер_телефона, инн, адрес)
 VALUES (p_fio, p_phone, p_inn, p_address);
 message := 'Новый клиент создан!';
 END IF;
@@ -236,7 +236,7 @@ message := 'Ошибка сохранения клиента: ' || SQLERRM;
 RETURN NEXT;
 END;
 $$;
--- 6. HIRE EMPLOYEE
+
 DROP FUNCTION IF EXISTS sp_hire_employee(
     VARCHAR,
     VARCHAR,
@@ -255,7 +255,7 @@ CREATE OR REPLACE FUNCTION sp_hire_employee(
         p_login VARCHAR,
         p_password VARCHAR
     ) RETURNS TABLE (status VARCHAR, message VARCHAR) LANGUAGE plpgsql AS $$ BEGIN
-INSERT INTO сотрудники (
+INSERT INTO Сотрудник (
         фио,
         номер_телефона,
         дата_рождения,
@@ -290,12 +290,12 @@ message := 'Ошибка: ' || SQLERRM;
 RETURN NEXT;
 END;
 $$;
--- 7. DICTIONARIES
+
 DROP FUNCTION IF EXISTS sp_get_clients();
 CREATE OR REPLACE FUNCTION sp_get_clients() RETURNS TABLE (id_клиента INTEGER, фио VARCHAR) LANGUAGE plpgsql AS $$ BEGIN RETURN QUERY
 SELECT k.id_клиента,
     k.фио::VARCHAR
-FROM клиенты k
+FROM Клиент k
 ORDER BY k.фио;
 END;
 $$;
@@ -310,7 +310,7 @@ SELECT i.id_изделия,
     i.наименование::VARCHAR,
     i.стоимость,
     i.количество_на_складе
-FROM изделия i
+FROM Изделие i
 ORDER BY i.наименование;
 END;
 $$;

@@ -1,5 +1,5 @@
--- Logic for Manual Task Creation with Material Check
--- This replaces direct INSERT in python code if any, or creates a new procedure
+
+
 DROP FUNCTION IF EXISTS sp_create_manual_production_task(INTEGER, INTEGER, INTEGER, DATE);
 CREATE OR REPLACE FUNCTION sp_create_manual_production_task(
         p_order_id INTEGER,
@@ -8,11 +8,11 @@ CREATE OR REPLACE FUNCTION sp_create_manual_production_task(
         p_deadline DATE
     ) RETURNS TABLE (status VARCHAR, message VARCHAR) LANGUAGE plpgsql AS $$
 DECLARE v_missing_material_name VARCHAR;
-BEGIN -- 1. MATERIAL CHECK
--- Check if we have enough materials for this specific task
+BEGIN 
+
 SELECT m.наименование INTO v_missing_material_name
-FROM состав_заготовки sz
-    JOIN материалы m ON sz.id_материала = m.id_материала
+FROM СоставЗаготовки sz
+    JOIN Материал m ON sz.id_материала = m.id_материала
 WHERE sz.id_заготовки = p_component_id
     AND m.количество_на_складе < (sz.количество_материала * p_qty)
 LIMIT 1;
@@ -21,8 +21,8 @@ message := 'НЕОБХОДИМА ЗАКУПКА: Недостаточно мат
 RETURN NEXT;
 RETURN;
 END IF;
--- 2. Create Task
-INSERT INTO план_заготовок (
+
+INSERT INTO ПланЗаготовок (
         id_заказа,
         id_заготовки,
         плановое_количество,

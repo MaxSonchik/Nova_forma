@@ -1,4 +1,4 @@
--- Update sp_update_order_status to support cancellation
+
 DROP FUNCTION IF EXISTS sp_update_order_status(INTEGER, VARCHAR);
 CREATE OR REPLACE FUNCTION sp_update_order_status(
         p_order_id INTEGER,
@@ -7,14 +7,14 @@ CREATE OR REPLACE FUNCTION sp_update_order_status(
 DECLARE v_current_status VARCHAR;
 BEGIN
 SELECT статус INTO v_current_status
-FROM заказы
+FROM Заказ
 WHERE id_заказа = p_order_id;
 IF NOT FOUND THEN status := 'ERROR';
 message := 'Заказ не найден';
 RETURN NEXT;
 RETURN;
 END IF;
--- Validate transitions
+
 IF p_new_status = 'в_работе'
 AND v_current_status != 'принят' THEN status := 'ERROR';
 message := 'Нельзя перевести в работу. Текущий статус: ' || v_current_status;
@@ -33,16 +33,16 @@ message := 'Нельзя отгрузить. Заказ не готов. Тек�
 RETURN NEXT;
 RETURN;
 END IF;
--- NEW: Allow cancellation from any active status (except maybe already shipped/completed if logic requires)
--- For now allowing cancellation from any status for flexibility, or maybe restrict 'отгружен'
+
+
 IF p_new_status = 'отменен'
 AND v_current_status IN ('отгружен', 'завершен') THEN status := 'ERROR';
 message := 'Нельзя отменить завершенный/отгруженный заказ.';
 RETURN NEXT;
 RETURN;
 END IF;
--- Perform update
-UPDATE заказы
+
+UPDATE Заказ
 SET статус = p_new_status
 WHERE id_заказа = p_order_id;
 status := 'OK';

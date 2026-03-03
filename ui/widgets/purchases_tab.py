@@ -79,16 +79,16 @@ class PurchasesTab(QWidget):
 
     def load_purchases(self):
         text = self.search_input.text().strip().lower()
-        query = "SELECT id_закупки, дата_закупки, поставщик, статус FROM закупки_материалов WHERE 1=1"
+        query = "SELECT * FROM sp_get_purchases()"
         params = []
         if text:
-            query += " AND (LOWER(поставщик) LIKE %s OR LOWER(статус) LIKE %s)"
+            query += " WHERE (LOWER(поставщик) LIKE %s OR LOWER(статус) LIKE %s)"
             like = f"%{text}%"
             params.extend([like, like])
         query += " ORDER BY дата_закупки DESC"
 
         rows = Database.fetch_all(query, params)
-        # compute sum per purchase
+                                  
         self.table.setRowCount(0)
         for i, r in enumerate(rows):
             self.table.insertRow(i)
@@ -98,7 +98,7 @@ class PurchasesTab(QWidget):
             self.table.setItem(i, 3, QTableWidgetItem(r["статус"] or ""))
 
             sum_row = Database.fetch_one(
-                "SELECT COALESCE(SUM(количество * цена_закупки), 0) AS s FROM состав_закупки WHERE id_закупки = %s",
+                "SELECT COALESCE(SUM(количество * цена_закупки), 0) AS s FROM СоставЗакупки WHERE id_закупки = %s",
                 (r["id_закупки"],),
             )
             total = float(sum_row["s"]) if sum_row else 0.0
@@ -108,19 +108,19 @@ class PurchasesTab(QWidget):
         d = NewPurchaseDialog(self)
         if d.exec():
             supplier, items = d.get_data()
-            # Insert into закупки_материалов
+                                 
             res = Database.insert_returning(
-                "INSERT INTO закупки_материалов (поставщик, статус) VALUES (%s, %s) RETURNING id_закупки",
+                "INSERT INTO Закупка (поставщик, статус) VALUES (%s, %s) RETURNING id_закупки",
                 (supplier, "ожидает_подтверждения"),
             )
             if not res:
                 Toast.error(self, "Ошибка", "Не удалось создать закупку")
                 return
             purchase_id = res["id_закупки"]
-            # Insert items
+                          
             for mat in items:
                 Database.execute(
-                    "INSERT INTO состав_закупки (id_закупки, id_материала, количество, цена_закупки) VALUES (%s, %s, %s, %s)",
+                    "INSERT INTO СоставЗакупки (id_закупки, id_материала, количество, цена_закупки) VALUES (%s, %s, %s, %s)",
                     (purchase_id, mat["id"], mat["qty"], mat["price"]),
                 )
             Toast.success(self, "ОК", "Закупка создана")
@@ -131,23 +131,29 @@ class PurchasesTab(QWidget):
         if selected < 0:
             Toast.error(self, "Ошибка", "Выберите закупку")
             return
+
+        status = self.table.item(selected, 3).text()
+        if status == "выполнено":
+            Toast.error(self, "Ошибка", "Невозможно подтвердить выполненную закупку")
+            return
+
         purchase_id = int(self.table.item(selected, 0).text())
-        # Update status to выполнено and add quantities to materials
+                                                                    
         ok, msg = Database.execute(
-            "UPDATE закупки_материалов SET статус = %s WHERE id_закупки = %s",
+            "UPDATE Закупка SET статус = %s WHERE id_закупки = %s",
             ("выполнено", purchase_id),
         )
         if not ok:
             Toast.error(self, "Ошибка", msg)
             return
-        # Add quantities to materials (increase stock)
+                                                      
         items = Database.fetch_all(
-            "SELECT id_материала, количество FROM состав_закупки WHERE id_закупки = %s",
+            "SELECT * FROM sp_get_purchase_items(%s)",
             (purchase_id,),
         )
         for it in items:
             Database.execute(
-                "UPDATE материалы SET количество_на_складе = COALESCE(количество_на_складе,0) + %s WHERE id_материала = %s",
+                "UPDATE Материал SET количество_на_складе = COALESCE(количество_на_складе,0) + %s WHERE id_материала = %s",
                 (it["количество"], it["id_материала"]),
             )
         Toast.success(self, "ОК", "Закупка подтверждена и склад обновлён")
@@ -175,18 +181,13 @@ class PurchasesTab(QWidget):
             
         purchase_id = int(self.table.item(selected, 0).text())
         
-        # Get items for this purchase
+                                     
         items = Database.fetch_all(
-            """
-            SELECT m.наименование, sz.количество, sz.цена_закупки 
-            FROM состав_закупки sz 
-            JOIN материалы m ON sz.id_материала = m.id_материала 
-            WHERE sz.id_закупки = %s
-            """,
+            "SELECT * FROM sp_get_purchase_items(%s)",
             (purchase_id,)
         )
         
-        # Create simple dialog
+                              
         d = QDialog(self)
         d.setWindowTitle(f"Состав закупки #{purchase_id}")
         d.resize(500, 300)
@@ -232,16 +233,16 @@ class NewPurchaseDialog(QDialog):
 
         self.material_search = QLineEdit()
         self.material_search.setPlaceholderText(
-            "Поиск материала по наименованию или артикулу"
+            "Поиск материала по наименованию..."
         )
         self.material_search.textChanged.connect(self.load_materials)
         top.addWidget(self.material_search)
 
         layout.addLayout(top)
 
-        # Show only material name to the user (keep id hidden for internal use)
+                                                                               
         self.materials_table = QTableWidget()
-        # Column 0: hidden id, Column 1: Наименование
+                                                     
         self.materials_table.setColumnCount(2)
         self.materials_table.setHorizontalHeaderLabels(["ID", "Наименование"])
         self.materials_table.verticalHeader().setVisible(False)
@@ -271,20 +272,21 @@ class NewPurchaseDialog(QDialog):
 
         layout.addLayout(btns)
 
-        # Internal list of chosen items
+                                       
         self.chosen = []
         self.load_materials()
 
     def load_materials(self):
         q = self.material_search.text().strip().lower()
-        sql = "SELECT id_материала, артикул_материала AS артикул, наименование FROM материалы WHERE 1=1"
+                         
+        sql = "SELECT id_материала, наименование FROM sp_get_all_materials()"
         params = []
         if q:
             sql += (
-                " AND (LOWER(наименование) LIKE %s OR LOWER(артикул_материала) LIKE %s)"
+                " WHERE LOWER(наименование) LIKE %s"
             )
             like = f"%{q}%"
-            params.extend([like, like])
+            params.append(like)
         rows = Database.fetch_all(sql, params)
         self.materials_table.setRowCount(0)
         for i, r in enumerate(rows):
@@ -298,17 +300,17 @@ class NewPurchaseDialog(QDialog):
         self.materials_table.hideColumn(0)
 
     def add_selected(self):
-        # Gather selected rows and prompt for qty/price via inline spins (simpler UX)
+                                                                                     
         selected = self.materials_table.selectionModel().selectedRows()
         rows = [r.row() for r in selected]
         if not rows:
-            Toast.error(self, "Ошибка", "Выберите материалы в списке")
+            Toast.error(self, "Ошибка", "Выберите Материал в списке")
             return
         added = 0
         for r in rows:
             mid = int(self.materials_table.item(r, 0).text())
             name = self.materials_table.item(r, 1).text()
-            # Ask qty/price via inline simple dialog composed as a small QDialog
+                                                                                
             d = QDialog(self)
             d.setWindowTitle(f"Добавить: {name}")
             l = QVBoxLayout(d)
@@ -332,7 +334,7 @@ class NewPurchaseDialog(QDialog):
             btns.addWidget(cancel)
             l.addLayout(btns)
             if d.exec():
-                # Enforce price > 0 when adding
+                                               
                 if price.value() <= 0:
                     Toast.error(
                         self,
@@ -359,7 +361,7 @@ class NewPurchaseDialog(QDialog):
         return self.supplier_input.text().strip(), self.chosen
 
     def accept(self) -> None:
-        # Validate supplier and that at least one item has been added
+                                                                     
         supplier = self.supplier_input.text().strip()
         if not supplier:
             Toast.error(
